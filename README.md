@@ -48,6 +48,8 @@ Run the tests:
 go test ./...
 ```
 
+On every push and pull request, GitHub Actions runs `gofmt -l`, `go vet ./...`, `staticcheck ./...`, `go test ./...` on Linux, Windows, macOS with Go 1.27.3, then `go test ./...` on Linux with the newest Go 1.24 release, the oldest that the module supports (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
+
 ## Options
 
 ```text

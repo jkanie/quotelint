@@ -62,10 +62,10 @@ Planned work after the seed, with an hour estimate per item. The total is 30 hou
 - What: `--html FILE` writes a single self-contained page with each quote, its source passage, the changed words marked, plus a filter by status.
 - Why: a long text report is hard to read and hard to share. A page opens in any browser and can go to an editor who does not use a terminal.
 
-## 13. CI on Linux, Windows, macOS, 1.5 hours
+## 13. UTF-16 files, 1.5 hours
 
-- What: a CI workflow that runs `gofmt -l`, `go vet ./...`, `staticcheck ./...`, `go test ./...` on all 3 platforms.
-- Why: line endings and file paths differ per platform. Only a run on each platform proves each build.
+- What: read text files that start with a UTF-16 byte order mark (little-endian or big-endian) with `unicode/utf16` from the standard library, both as sources and as documents.
+- Why: Windows PowerShell 5.1 writes UTF-16 with `>`, and Notepad saves it as "UTF-16 LE". Today, a UTF-16 source stops the run with "not UTF-8 text", and a UTF-16 document is read as bytes, which puts a zero byte between the letters of each quote and reports every quote as not found.
 
 ## 14. Release v0.1.0, 2 hours
 
