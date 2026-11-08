@@ -1,0 +1,5 @@
+/quotelint
+/quotelint.exe
+/dist/
+/.gocache/
+/.gocfg/
