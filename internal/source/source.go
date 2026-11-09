@@ -3,11 +3,12 @@ package source
 
 import (
 	"fmt"
-	"html"
 	"os"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	"golang.org/x/net/html"
 )
 
 // Source is 1 loaded source file.
@@ -29,7 +30,10 @@ func Load(path string) (Source, error) {
 	s := string(b)
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".html", ".htm":
-		s = HTMLText(s)
+		s, err = HTMLText(s)
+		if err != nil {
+			return Source{}, fmt.Errorf("%s: %v", path, err)
+		}
 	}
 	return Source{Name: path, Text: s}, nil
 }
@@ -50,85 +54,113 @@ var skipped = map[string]bool{
 	"script": true, "style": true, "noscript": true, "template": true,
 }
 
-// HTMLText turns an HTML page into its visible text. Comments and the
-// content of script, style, noscript and template elements are dropped.
-// An inline tag (em, span, a ...) leaves no gap, any other tag leaves a
-// space, and character references such as &amp; are decoded. A "<" that
-// does not start a tag stays as text.
-func HTMLText(s string) string {
-	var b strings.Builder
-	i := 0
-	for i < len(s) {
-		if s[i] != '<' {
-			j := strings.IndexByte(s[i:], '<')
-			if j < 0 {
-				j = len(s) - i
-			}
-			b.WriteString(html.UnescapeString(s[i : i+j]))
-			i += j
-			continue
-		}
-		if strings.HasPrefix(s[i:], "<!--") {
-			j := strings.Index(s[i+4:], "-->")
-			if j < 0 {
-				break
-			}
-			i += 4 + j + 3
-			b.WriteByte(' ')
-			continue
-		}
-		if !startsTag(s[i+1:]) {
-			b.WriteByte('<')
-			i++
-			continue
-		}
-		j := strings.IndexByte(s[i:], '>')
-		if j < 0 {
-			break
-		}
-		tag := s[i+1 : i+j]
-		i += j + 1
-		name := tagName(tag)
-		if skipped[name] && !strings.HasPrefix(tag, "/") && !strings.HasSuffix(tag, "/") {
-			k := strings.Index(strings.ToLower(s[i:]), "</"+name)
-			if k < 0 {
-				break
-			}
-			i += k
-			m := strings.IndexByte(s[i:], '>')
-			if m < 0 {
-				break
-			}
-			i += m + 1
-			b.WriteByte(' ')
-			continue
-		}
-		if !inline[name] {
-			b.WriteByte(' ')
-		}
+// HTMLText turns an HTML page into its visible text. The page is read by
+// the HTML5 parser of golang.org/x/net/html, so unclosed tags, a "<"
+// inside an attribute value, a "<" that does not start a tag are read the
+// way a browser reads them. Comments, the content of script, style,
+// noscript, template elements, every element with a hidden attribute or
+// with aria-hidden="true" are dropped. An inline tag (em, span, a ...)
+// leaves no gap, any other tag or comment leaves a space. Character
+// references such as &amp; are decoded. Outside pre, each run of HTML
+// white space becomes 1 space. Inside pre, the text keeps its own white
+// space and line breaks, and a br tag gives a line break. The parser
+// returns an error for a page nested deeper than 512 elements.
+func HTMLText(s string) (string, error) {
+	doc, err := html.Parse(strings.NewReader(s))
+	if err != nil {
+		return "", err
 	}
-	return b.String()
+	var w textWriter
+	w.walk(doc, false)
+	return w.b.String(), nil
 }
 
-// startsTag reports whether the text after a "<" opens a tag, a closing
-// tag or a declaration such as <!DOCTYPE html>.
-func startsTag(rest string) bool {
-	if rest == "" {
-		return false
-	}
-	c := rest[0]
-	if c == '/' || c == '!' || c == '?' {
-		return true
-	}
-	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+// textWriter builds the text of a page. A gap is written only between 2
+// pieces of text, so the text never starts or ends with a gap and never
+// holds 2 gaps in a row.
+type textWriter struct {
+	b   strings.Builder
+	gap bool
 }
 
-// tagName returns the lower-case element name of a tag's inner text.
-func tagName(tag string) string {
-	tag = strings.TrimPrefix(tag, "/")
-	end := strings.IndexAny(tag, " \t\r\n/>")
-	if end >= 0 {
-		tag = tag[:end]
+func (w *textWriter) write(s string) {
+	if s == "" {
+		return
 	}
-	return strings.ToLower(tag)
+	if w.gap && w.b.Len() > 0 {
+		w.b.WriteByte(' ')
+	}
+	w.gap = false
+	w.b.WriteString(s)
+}
+
+// walk writes the text of n and its children. pre is true inside a pre
+// element.
+func (w *textWriter) walk(n *html.Node, pre bool) {
+	switch n.Type {
+	case html.TextNode:
+		if pre {
+			w.write(n.Data)
+			return
+		}
+		if strings.IndexFunc(n.Data, isHTMLSpace) == 0 {
+			w.gap = true
+		}
+		for i, f := range strings.FieldsFunc(n.Data, isHTMLSpace) {
+			if i > 0 {
+				w.gap = true
+			}
+			w.write(f)
+		}
+		if n.Data != "" && isHTMLSpace(rune(n.Data[len(n.Data)-1])) {
+			w.gap = true
+		}
+		return
+	case html.CommentNode, html.DoctypeNode:
+		w.gap = true
+		return
+	case html.ElementNode:
+		if n.Data == "br" && pre && !hidden(n) {
+			w.gap = false
+			w.write("\n")
+			return
+		}
+		if !inline[n.Data] {
+			w.gap = true
+		}
+		if skipped[n.Data] || hidden(n) {
+			return
+		}
+		pre = pre || n.Data == "pre"
+	}
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		w.walk(c, pre)
+	}
+	if n.Type == html.ElementNode && !inline[n.Data] {
+		w.gap = true
+	}
+}
+
+// hidden reports whether an element has a hidden attribute (with any
+// value) or aria-hidden="true" (in any case), which keep it off the page
+// or away from screen readers.
+func hidden(n *html.Node) bool {
+	for _, a := range n.Attr {
+		if a.Namespace != "" {
+			continue
+		}
+		if a.Key == "hidden" {
+			return true
+		}
+		if a.Key == "aria-hidden" && strings.EqualFold(strings.TrimSpace(a.Val), "true") {
+			return true
+		}
+	}
+	return false
+}
+
+// isHTMLSpace reports whether r is HTML white space: space, tab, line
+// feed, form feed, carriage return. A no-break space is not.
+func isHTMLSpace(r rune) bool {
+	return r == ' ' || r == '\t' || r == '\n' || r == '\f' || r == '\r'
 }

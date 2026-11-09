@@ -25,10 +25,14 @@ A command-line tool that checks every quoted passage in your documents against t
 - Skips quotation marks inside fenced code blocks and inline code spans.
 - Ends an unclosed quote at the next blank line so that 1 stray mark never swallows the rest of the document.
 - Turns an HTML source into its visible text first:
+  - Reads the page with the HTML5 parser from `golang.org/x/net/html`, which follows the parsing rules that browsers use. Unclosed tags, misnested tags, a `<` inside an attribute value are therefore read the way a browser reads them.
   - Inline tags (such as `em`, `span`, `a`) leave no gap, so `LAG<em>n</em>` reads as `LAGn`, the way a browser shows it.
   - Other tags leave a space.
   - Comments and the content of `script`, `style`, `noscript`, `template` are dropped.
+  - Elements with a `hidden` attribute or with `aria-hidden="true"` are dropped with their content.
+  - Inside `pre`, the text keeps its line breaks, and a `br` gives a line break. Elsewhere, each run of spaces, tabs, line breaks becomes 1 space. The comparison counts a line break as a space either way.
   - Character references such as `&amp;` and `&nbsp;` are decoded.
+  - A page nested deeper than 512 elements stops the run with an error (exit status 2). 512 is the limit of the parser.
 - Compares quote and source after it collapses each run of white space (no-break spaces included) to 1 space. No other character changes unless `--fold-quotes` is given.
 - Marks a quote as verbatim when its text occurs in a source with no letter or digit glued to either end.
 - Otherwise, finds the nearest passage in any source (the run of source words with the fewest word edits) and lists the changed words. A quote that needs more edits than half its words counts as not found.
@@ -41,8 +45,10 @@ Anyone who quotes sources in their writing (reports, reviews, letters, documenta
 
 ## Built with
 
-- Go, built and tested with Go 1.24.7. The module needs Go 1.24 or later.
-- The Go standard library only, with no third-party module.
+- Go, built and tested with Go 1.27.3 and Go 1.26.0. The module needs Go 1.26.0 or later.
+- The Go standard library, plus `golang.org/x/net` v0.62.0 for its HTML5 parser:
+  - v0.62.0 holds the fixes for the parser bugs GO-2026-5025, GO-2026-5027, GO-2026-5028, GO-2026-5029, GO-2026-5030 (fixed in v0.55.0), GO-2026-6860 (fixed in v0.62.0). See [pkg.go.dev/vuln](https://pkg.go.dev/vuln/) for each ID.
+  - v0.62.0 needs Go 1.26.0, which sets the minimum of this module. The last release that supported Go 1.24, v0.50.0, still has these bugs.
 
 The argument parser is hand-written, with no parser package.
 
@@ -60,7 +66,7 @@ Run the tests:
 go test ./...
 ```
 
-On every push and pull request, GitHub Actions runs `gofmt -l`, `go vet ./...`, `staticcheck ./...`, `go test ./...` on Linux, Windows, macOS with Go 1.27.3, then `go test ./...` on Linux with the newest Go 1.24 release, the oldest that the module supports (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
+On every push and pull request, GitHub Actions runs `gofmt -l`, `go vet ./...`, `staticcheck ./...`, `go test ./...` on Linux, Windows, macOS with Go 1.27.3, then `go test ./...` on Linux with Go 1.26.0, the oldest release that the module supports (see [.github/workflows/ci.yml](.github/workflows/ci.yml)).
 
 ## Options
 
