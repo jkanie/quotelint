@@ -270,3 +270,22 @@ func TestEmptyFolderIsAnError(t *testing.T) {
 		t.Fatalf("code %d, err %q", code, errOut)
 	}
 }
+
+func TestSingleAndNestedQuotes(t *testing.T) {
+	d, s := setup(t, "A: 'stores and return values only from the observations'.\n\n"+
+		"B: “The guide says ‘executed conditionally stores and return values’ here.”\n")
+	code, out, _ := run(d, s)
+	if code != 1 {
+		t.Fatalf("code %d, out:\n%s", code, out)
+	}
+	for _, w := range []string{
+		"notes.md:1: verbatim in " + s + `: "stores and return values only from the observations"`,
+		"notes.md:3: not found in any source: \"The guide says ‘executed conditionally stores and return val...\"",
+		"notes.md:3: verbatim in " + s + `: "executed conditionally stores and return values"`,
+		"summary: 1 doc, 3 quotes, 2 verbatim, 0 differs, 1 not found",
+	} {
+		if !strings.Contains(out, w) {
+			t.Fatalf("missing %q in:\n%s", w, out)
+		}
+	}
+}

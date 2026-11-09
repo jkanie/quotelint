@@ -22,6 +22,8 @@ const usage = `Usage: quotelint [OPTIONS] DOC SOURCE...
        quotelint [OPTIONS] -s SOURCE [-s SOURCE]... DOC...
 
 Check every quoted passage in each DOC against the SOURCE files.
+A quoted passage sits between double or single quotation marks. A
+quote inside a quote is checked as well as the quote around it.
 A DOC is a Markdown or text file, or a folder of them (.md, .markdown,
 .txt, .text). A SOURCE is a text file, an HTML file (.html, .htm) that
 is turned into text first, or a folder of such files. Folders are read

@@ -4,7 +4,19 @@ A command-line tool that checks every quoted passage in your documents against t
 
 ## What it does
 
-- Finds every passage between double quotation marks in a Markdown or text file, straight (`" "`) or curly (`“ ”`), with the line number of its opening mark.
+- Finds every passage between quotation marks in a Markdown or text file, with the line number of its opening mark:
+  - Double marks, straight (`" "`) or curly (`“ ”`).
+  - Single marks, curly (`‘ ’`) or straight (`' '`).
+  - A quote inside a quote, such as `“the manual says ‘cool it’ first”`. Both are checked: the inner quote on its own, the outer quote with the inner marks in its text. The results come in the order of the opening marks.
+- Tells a single mark from an apostrophe by the characters on either side of it:
+  - A straight `'` opens a quote only at the start of a paragraph or after 1 of these: white space, an opening bracket, an opening mark, an em dash, an en dash, `/`. A letter or digit must follow it.
+  - A single mark (`'` or `’`) closes a quote only after a character that is not white space and only when no letter or digit follows it.
+  - A mark between 2 letters or digits is therefore an apostrophe, so `don't`, `it’s`, `the 90's` never start or end a quote.
+  - A curly mark pairs only with a curly mark. A straight mark pairs only with a straight 1.
+- Does not yet handle these single-mark cases:
+  - A plural possessive inside a single-quoted passage ends the quote early. `'the students' books are here'` gives the quote `the students`.
+  - An elision at the start of a word (such as `'tis` or `'90s`) opens a quote. A later closing mark in the same paragraph pairs with it. When no mark closes it, it is dropped at the end of the paragraph.
+  - `rock 'n' roll` gives a 1-word quote (`n`), which the default `--min-words 3` skips.
 - Checks 1 document or many. A document can be a file or a folder of `.md`, `.markdown`, `.txt`, `.text` files.
 - Takes 1 source or many. A source can be a file or a folder of text and HTML files (`.html`, `.htm` added to the document endings).
 - Reads folders recursively, in sorted order, and skips every name that starts with a dot (such as `.git`).
@@ -58,6 +70,8 @@ Usage: quotelint [OPTIONS] DOC SOURCE...
        quotelint [OPTIONS] -s SOURCE [-s SOURCE]... DOC...
 
 Check every quoted passage in each DOC against the SOURCE files.
+A quoted passage sits between double or single quotation marks. A
+quote inside a quote is checked as well as the quote around it.
 A DOC is a Markdown or text file, or a folder of them (.md, .markdown,
 .txt, .text). A SOURCE is a text file, an HTML file (.html, .htm) that
 is turned into text first, or a folder of such files. Folders are read
@@ -181,6 +195,30 @@ $ echo $?
 ```
 
 `distance` is the number of word edits, and it is 0 for a quote that is verbatim or not found.
+
+A run on `note.md` (a made-up service note) with single and nested quotes:
+
+```text
+$ cat note.md
+# Service note
+
+The owner wrote “the manual says ‘Let the motor cool for 10 minutes before the next run.’ and I have followed that rule every day since I bought the pump in May”.
+
+Don't skip the rule that says 'the filter should be rinsed after every 3 runs'.
+$ quotelint note.md sources/manual.html
+note.md:3: not found in any source: "the manual says ‘Let the motor cool for 10 minutes before th..."
+note.md:3: verbatim in sources/manual.html: "Let the motor cool for 10 minutes before the next run."
+note.md:5: differs from sources/manual.html (2 word edits)
+  quote:  the filter should be rinsed after every 3 runs
+  source: The filter should be rinsed after every 5 runs.
+  change: "the" -> "The"
+  change: "3" -> "5"
+summary: 1 doc, 3 quotes, 1 verbatim, 1 differs, 1 not found
+$ echo $?
+1
+```
+
+The outer quote on line 3 holds the owner's own words. It is therefore not in the manual. The inner quote is checked on its own and is verbatim. The apostrophe in `Don't` does not open a quote.
 
 ## Licence
 
