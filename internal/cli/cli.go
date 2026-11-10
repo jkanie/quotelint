@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jkanie/quotelint/internal/extract"
 	"github.com/jkanie/quotelint/internal/match"
@@ -27,7 +28,9 @@ quote inside a quote is checked as well as the quote around it.
 A DOC is a Markdown or text file, or a folder of them (.md, .markdown,
 .txt, .text). A SOURCE is a text file, an HTML file (.html, .htm) that
 is turned into text first, or a folder of such files. Folders are read
-recursively, skipping names that start with a dot.
+recursively, skipping names that start with a dot. A SOURCE that starts
+with http:// or https:// is a web page: it is fetched once into the
+cache, and later runs read it from there, offline.
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs.
 
@@ -35,6 +38,10 @@ Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
                      other path is then a DOC.
   --min-words N      Check only quotes of N or more words (default 3).
+  --refresh          Fetch every web page SOURCE again, then update the
+                     cache.
+  --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
+                     the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
   --json             Print a JSON object instead of text.
   -h, --help         Print this help.
@@ -50,6 +57,8 @@ type config struct {
 	minWords int
 	fold     bool
 	json     bool
+	refresh  bool
+	cacheDir string
 }
 
 var errHelp = errors.New("help")
@@ -72,6 +81,21 @@ func parse(args []string) (config, error) {
 			c.json = true
 		case a == "--fold-quotes":
 			c.fold = true
+		case a == "--refresh":
+			c.refresh = true
+		case a == "--cache-dir" || strings.HasPrefix(a, "--cache-dir="):
+			v, ok := strings.CutPrefix(a, "--cache-dir=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--cache-dir needs a folder")
+				}
+				i++
+				v = args[i]
+			}
+			if v == "" {
+				return c, errors.New("--cache-dir needs a folder")
+			}
+			c.cacheDir = v
 		case a == "-s" || a == "--source" || strings.HasPrefix(a, "--source="):
 			v, ok := strings.CutPrefix(a, "--source=")
 			if !ok {
@@ -140,9 +164,18 @@ type summary struct {
 	Verbatim int `json:"verbatim"`
 }
 
+// jsonPage records where a web page SOURCE came from in this run.
+type jsonPage struct {
+	FetchedAt string `json:"fetched_at"`
+	FinalURL  string `json:"final_url"`
+	FromCache bool   `json:"from_cache"`
+	URL       string `json:"url"`
+}
+
 type report struct {
 	Docs    []string    `json:"docs"`
 	Match   bool        `json:"match"`
+	Pages   []jsonPage  `json:"pages,omitempty"`
 	Quotes  []jsonQuote `json:"quotes"`
 	Sources []string    `json:"sources"`
 	Summary summary     `json:"summary"`
@@ -190,12 +223,23 @@ func check(c config) (report, error) {
 	if err != nil {
 		return report{}, err
 	}
-	srcs, err := source.Expand(c.sources, source.SourceExts)
-	if err != nil {
-		return report{}, err
+	var paths, urls []string
+	for _, s := range c.sources {
+		if source.IsURL(s) {
+			urls = append(urls, s)
+		} else {
+			paths = append(paths, s)
+		}
 	}
-	srcs = source.Without(srcs, docs)
-	if len(srcs) == 0 {
+	var srcs []string
+	if len(paths) > 0 {
+		srcs, err = source.Expand(paths, source.SourceExts)
+		if err != nil {
+			return report{}, err
+		}
+		srcs = source.Without(srcs, docs)
+	}
+	if len(srcs) == 0 && len(urls) == 0 {
 		return report{}, errors.New("no SOURCE left once the DOCs are left out")
 	}
 	opt := match.Options{FoldQuotes: c.fold}
@@ -207,7 +251,40 @@ func check(c config) (report, error) {
 		}
 		texts = append(texts, match.Prepare(s.Name, s.Text, opt))
 	}
-	r := report{Docs: docs, Sources: srcs, Quotes: []jsonQuote{}}
+	r := report{Docs: docs, Quotes: []jsonQuote{}}
+	if len(urls) > 0 {
+		dir := c.cacheDir
+		if dir == "" {
+			if dir, err = source.DefaultCacheDir(); err != nil {
+				return report{}, err
+			}
+		}
+		cache := source.Cache{Dir: dir, Refresh: c.refresh}
+		seen := map[string]bool{}
+		for _, u := range urls {
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			p, fetched, err := cache.Get(u)
+			if err != nil {
+				return report{}, err
+			}
+			s, err := source.LoadPage(p)
+			if err != nil {
+				return report{}, err
+			}
+			texts = append(texts, match.Prepare(s.Name, s.Text, opt))
+			srcs = append(srcs, u)
+			r.Pages = append(r.Pages, jsonPage{
+				FetchedAt: p.FetchedAt.Format(time.RFC3339),
+				FinalURL:  p.FinalURL,
+				FromCache: !fetched,
+				URL:       u,
+			})
+		}
+	}
+	r.Sources = srcs
 	for _, d := range docs {
 		b, err := os.ReadFile(d)
 		if err != nil {
@@ -265,6 +342,13 @@ func writeText(w io.Writer, r report) {
 		default:
 			fmt.Fprintf(w, "%snot found in any source: %s\n", head, preview(q.Quote))
 		}
+	}
+	for _, p := range r.Pages {
+		how := "fetched"
+		if p.FromCache {
+			how = "from the cache, fetched"
+		}
+		fmt.Fprintf(w, "page: %s (%s %s)\n", p.URL, how, p.FetchedAt)
 	}
 	s := r.Summary
 	fmt.Fprintf(w, "summary: %s, %s, %d verbatim, %d differs, %d not found\n",

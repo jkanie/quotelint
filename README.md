@@ -18,7 +18,7 @@ A command-line tool that checks every quoted passage in your documents against t
   - An elision at the start of a word (such as `'tis` or `'90s`) opens a quote. A later closing mark in the same paragraph pairs with it. When no mark closes it, it is dropped at the end of the paragraph.
   - `rock 'n' roll` gives a 1-word quote (`n`), which the default `--min-words 3` skips.
 - Checks 1 document or many. A document can be a file or a folder of `.md`, `.markdown`, `.txt`, `.text` files.
-- Takes 1 source or many. A source can be a file or a folder of text and HTML files (`.html`, `.htm` added to the document endings).
+- Takes 1 source or many. A source can be a file, a folder of text and HTML files (`.html`, `.htm` added to the document endings), a web page URL that is fetched once and kept in a cache.
 - Reads folders recursively, in sorted order, and skips every name that starts with a dot (such as `.git`).
 - Never checks a document against itself when the document also sits in a source folder.
 - Stops with an error when a folder holds no file to read, so that a typo in a path never passes as "nothing to check".
@@ -81,7 +81,9 @@ quote inside a quote is checked as well as the quote around it.
 A DOC is a Markdown or text file, or a folder of them (.md, .markdown,
 .txt, .text). A SOURCE is a text file, an HTML file (.html, .htm) that
 is turned into text first, or a folder of such files. Folders are read
-recursively, skipping names that start with a dot.
+recursively, skipping names that start with a dot. A SOURCE that starts
+with http:// or https:// is a web page: it is fetched once into the
+cache, and later runs read it from there, offline.
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs.
 
@@ -89,6 +91,10 @@ Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
                      other path is then a DOC.
   --min-words N      Check only quotes of N or more words (default 3).
+  --refresh          Fetch every web page SOURCE again, then update the
+                     cache.
+  --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
+                     the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
   --json             Print a JSON object instead of text.
   -h, --help         Print this help.
@@ -102,6 +108,20 @@ or is not found, 2 on an error.
 - `--min-words` skips short quoted words and titles (such as "the" or "Run"), which are not quotes of a source.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
+- A SOURCE that starts with `http://` or `https://` is a web page. See [Web page sources](#web-page-sources).
+
+## Web page sources
+
+```sh
+quotelint notes.md https://example.com/manual/lag.html
+```
+
+- The 1st run fetches the page and keeps it in the cache: `quotelint` in the user cache folder (`~/.cache/quotelint` on Linux, `~/Library/Caches/quotelint` on macOS, `%LocalAppData%\quotelint` on Windows), or the folder named by `--cache-dir`. Each URL gets 1 JSON file, named by the SHA-256 of the URL, with the page, its content type, the URL it ended on after redirects, the fetch time in UTC.
+- Later runs read the page from the cache, with no network. A re-run therefore gives the same result after the page changes. `--refresh` fetches every web page SOURCE of the run again and replaces its cache file.
+- The text report lists each page before the summary, such as `page: https://example.com/a (from the cache, fetched 2026-11-09T23:40:05Z)`. The JSON report has a `pages` list with `url`, `final_url`, `fetched_at`, `from_cache`, only when a web page SOURCE was given.
+- A page must answer 200 with `text/html` or `text/plain`, in UTF-8 (or with no charset and valid UTF-8 bytes), at 20 MiB or less, within 30 seconds. Anything else stops the run with exit code 2, and nothing is cached. An HTML page is turned into text the same way as an HTML file.
+- Each request sends the User-Agent `quotelint (+https://github.com/jkanie/quotelint)`.
+- A cache file that does not parse stops the run with exit code 2 and names the file. Delete it, or run with `--refresh`.
 
 ## Sample output
 

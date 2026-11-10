@@ -3,6 +3,8 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -287,5 +289,80 @@ func TestSingleAndNestedQuotes(t *testing.T) {
 		if !strings.Contains(out, w) {
 			t.Fatalf("missing %q in:\n%s", w, out)
 		}
+	}
+}
+
+func TestURLSourceIsCachedAndRefreshed(t *testing.T) {
+	served := page
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(served))
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	d := filepath.Join(dir, "notes.md")
+	if err := os.WriteFile(d, []byte("SAS: \"stores and return values only from the observations\".\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(dir, "pages")
+	u := srv.URL + "/lag"
+
+	code, out, errOut := run("--cache-dir", cache, d, u)
+	if code != 0 || hits != 1 || !strings.Contains(out, "notes.md:1: verbatim in "+u) ||
+		!strings.Contains(out, "page: "+u+" (fetched ") {
+		t.Fatalf("1st run: code %d, hits %d, out:\n%s%s", code, hits, out, errOut)
+	}
+
+	// The page changes. Without --refresh the cached copy still answers.
+	served = strings.Replace(page, "stores and return", "keeps and returns", 1)
+	code, out, _ = run("--cache-dir="+cache, d, u)
+	if code != 0 || hits != 1 || !strings.Contains(out, "page: "+u+" (from the cache, fetched ") {
+		t.Fatalf("cached run: code %d, hits %d, out:\n%s", code, hits, out)
+	}
+
+	code, out, _ = run("--cache-dir", cache, "--refresh", "--json", d, u, u)
+	if code != 1 || hits != 2 {
+		t.Fatalf("refresh: code %d, hits %d, out:\n%s", code, hits, out)
+	}
+	var r struct {
+		Pages []struct {
+			URL       string `json:"url"`
+			FromCache bool   `json:"from_cache"`
+			FetchedAt string `json:"fetched_at"`
+		} `json:"pages"`
+		Sources []string `json:"sources"`
+	}
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Pages) != 1 || r.Pages[0].URL != u || r.Pages[0].FromCache || r.Pages[0].FetchedAt == "" ||
+		len(r.Sources) != 1 || r.Sources[0] != u {
+		t.Fatalf("json %+v", r)
+	}
+}
+
+func TestJSONHasNoPagesWithoutURLSources(t *testing.T) {
+	d, s := setup(t, "SAS: \"stores and return values only from the observations\".\n")
+	_, out, _ := run("--json", d, s)
+	if strings.Contains(out, `"pages"`) {
+		t.Fatalf("pages key without a URL source:\n%s", out)
+	}
+}
+
+func TestURLFetchErrorExitsTwo(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	d, _ := setup(t, "x\n")
+	code, _, errOut := run("--cache-dir", t.TempDir(), d, srv.URL+"/missing")
+	if code != 2 || !strings.Contains(errOut, "the server answered 404 Not Found") {
+		t.Fatalf("code %d, stderr %s", code, errOut)
+	}
+	if code, _, errOut := run("--cache-dir=", d, "x"); code != 2 || !strings.Contains(errOut, "--cache-dir needs a folder") {
+		t.Fatalf("code %d, stderr %s", code, errOut)
+	}
+	if code, _, errOut := run("x", "--cache-dir"); code != 2 || !strings.Contains(errOut, "--cache-dir needs a folder") {
+		t.Fatalf("code %d, stderr %s", code, errOut)
 	}
 }
