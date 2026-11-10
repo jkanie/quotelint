@@ -366,3 +366,39 @@ func TestURLFetchErrorExitsTwo(t *testing.T) {
 		t.Fatalf("code %d, stderr %s", code, errOut)
 	}
 }
+
+// le encodes s as UTF-16 LE with a byte order mark, as Notepad saves it.
+func le(s string) []byte {
+	b := []byte{0xFF, 0xFE}
+	for _, r := range s {
+		b = append(b, byte(r), byte(r>>8))
+	}
+	return b
+}
+
+func TestUTF16DocAndSource(t *testing.T) {
+	dir := t.TempDir()
+	d := filepath.Join(dir, "notes.md")
+	s := filepath.Join(dir, "sas.txt")
+	if err := os.WriteFile(d, le("Intro.\r\nSAS: \"stores and return values only from the observations\".\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s, le("A LAG function stores and return values only from the observations for which the condition is satisfied.\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := run(d, s)
+	if code != 0 || !strings.Contains(out, "notes.md:2: verbatim in "+s) {
+		t.Fatalf("code %d, out:\n%s\nerr:\n%s", code, out, errs)
+	}
+}
+
+func TestUTF16DocWithOddBytesExitsTwo(t *testing.T) {
+	d, s := setup(t, "")
+	if err := os.WriteFile(d, []byte{0xFF, 0xFE, 'a'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, _, errs := run(d, s)
+	if code != 2 || !strings.Contains(errs, d+": not UTF-16 text (odd number of bytes)") {
+		t.Fatalf("code %d, err:\n%s", code, errs)
+	}
+}

@@ -19,6 +19,7 @@ A command-line tool that checks every quoted passage in your documents against t
   - `rock 'n' roll` gives a 1-word quote (`n`), which the default `--min-words 3` skips.
 - Checks 1 document or many. A document can be a file or a folder of `.md`, `.markdown`, `.txt`, `.text` files.
 - Takes 1 source or many. A source can be a file, a folder of text and HTML files (`.html`, `.htm` added to the document endings), a web page URL that is fetched once and kept in a cache.
+- Reads files as UTF-8, or as UTF-16 (little-endian or big-endian) when they start with a UTF-16 byte order mark, as Notepad and Windows PowerShell 5.1 save them. A UTF-16 file with an odd number of bytes or an unpaired surrogate stops the run with exit code 2.
 - Reads folders recursively, in sorted order, and skips every name that starts with a dot (such as `.git`).
 - Never checks a document against itself when the document also sits in a source folder.
 - Stops with an error when a folder holds no file to read, so that a typo in a path never passes as "nothing to check".
@@ -84,6 +85,8 @@ is turned into text first, or a folder of such files. Folders are read
 recursively, skipping names that start with a dot. A SOURCE that starts
 with http:// or https:// is a web page: it is fetched once into the
 cache, and later runs read it from there, offline.
+Files are read as UTF-8 text, or as UTF-16 when they start with a
+UTF-16 byte order mark (as Notepad and Windows PowerShell 5.1 save them).
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs.
 

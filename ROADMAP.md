@@ -1,6 +1,6 @@
 # Roadmap
 
-Planned work after the seed, with an hour estimate per item. The total is 24.5 hours.
+Planned work after the seed, with an hour estimate per item. The total is 23 hours.
 
 ## 1. Pair each quote with its own source, 3 hours
 
@@ -47,17 +47,12 @@ Planned work after the seed, with an hour estimate per item. The total is 24.5 h
 - What: `--html FILE` writes a single self-contained page with each quote, its source passage, the changed words marked, plus a filter by status.
 - Why: a long text report is hard to read and hard to share. A page opens in any browser and can go to an editor who does not use a terminal.
 
-## 10. UTF-16 files, 1.5 hours
-
-- What: read text files that start with a UTF-16 byte order mark (little-endian or big-endian) with `unicode/utf16` from the standard library, both as sources and as documents.
-- Why: Windows PowerShell 5.1 writes UTF-16 with `>`, and Notepad saves it as "UTF-16 LE". Today, a UTF-16 source stops the run with "not UTF-8 text", and a UTF-16 document is read as bytes, which puts a zero byte between the letters of each quote and reports every quote as not found.
-
-## 11. Look-ahead for single marks, 2.5 hours
+## 10. Look-ahead for single marks, 2.5 hours
 
 - What: before a single mark closes or opens a quote, look ahead in the paragraph for a better pairing, plus a list of common elisions (`'tis`, `'em`, `'n'`, `'90s`).
 - Why: today, a plural possessive such as `students'` ends a single-quoted passage early. A leading elision opens a quote (the README section "What it does" lists both cases). Each gives a wrong quote text, which is then reported as differs or not found.
 
-## 12. Release v0.1.0, 2 hours
+## 11. Release v0.1.0, 2 hours
 
 - What: write a change log, tag v0.1.0, publish binaries for the 3 platforms, make the module installable with `go install github.com/jkanie/quotelint@latest`.
 - Why: a tagged release with binaries lets people use the tool without a Go set-up, and it gives later releases a fixed point to compare against.

@@ -145,7 +145,9 @@ func TestLoadPicksHTMLByExtension(t *testing.T) {
 
 func TestLoadRejectsNonUTF8(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "bad.txt")
-	os.WriteFile(p, []byte{0xff, 0xfe, 'a'}, 0o644)
+	// FF FE at the start would be a UTF-16 byte order mark, so the bad byte
+	// comes after a letter.
+	os.WriteFile(p, []byte{'a', 0xff, 0xfe}, 0o644)
 	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "not UTF-8") {
 		t.Fatalf("got %v", err)
 	}
@@ -171,5 +173,90 @@ func TestExpandSortsDedupesAndSkipsDotNames(t *testing.T) {
 	}
 	if got := Without(want, []string{filepath.Join(dir, ".", "b.md")}); len(got) != 2 {
 		t.Fatalf("Without: %q", got)
+	}
+}
+
+// utf16Bytes encodes s as UTF-16 with a byte order mark.
+func utf16Bytes(s string, big bool) []byte {
+	b := []byte{0xFF, 0xFE}
+	if big {
+		b = []byte{0xFE, 0xFF}
+	}
+	for _, r := range s {
+		units := []rune{r}
+		if r > 0xFFFF {
+			r -= 0x10000
+			units = []rune{0xD800 + r>>10, 0xDC00 + r&0x3FF}
+		}
+		for _, u := range units {
+			if big {
+				b = append(b, byte(u>>8), byte(u))
+			} else {
+				b = append(b, byte(u), byte(u>>8))
+			}
+		}
+	}
+	return b
+}
+
+func TestUTF16BothByteOrders(t *testing.T) {
+	want := "Größe “quoted” 😀\r\nline 2"
+	for _, big := range []bool{false, true} {
+		got, ok, err := UTF16(utf16Bytes(want, big))
+		if err != nil || !ok || got != want {
+			t.Fatalf("big=%v: got %q, %v, %v", big, got, ok, err)
+		}
+	}
+}
+
+func TestUTF16NeedsAByteOrderMark(t *testing.T) {
+	for _, b := range [][]byte{[]byte("plain text"), {}, {0xFF}, {'a', 0}} {
+		if got, ok, err := UTF16(b); ok || err != nil || got != "" {
+			t.Fatalf("%v: got %q, %v, %v", b, got, ok, err)
+		}
+	}
+	if got, ok, err := UTF16([]byte{0xFF, 0xFE}); !ok || err != nil || got != "" {
+		t.Fatalf("mark only: got %q, %v, %v", got, ok, err)
+	}
+}
+
+func TestUTF16Errors(t *testing.T) {
+	for _, c := range []struct {
+		b    []byte
+		want string
+	}{
+		{[]byte{0xFF, 0xFE, 'a', 0, 'b'}, "not UTF-16 text (odd number of bytes)"},
+		{[]byte{0xFF, 0xFE, 'a', 0, 0x00, 0xD8, 'b', 0}, "not UTF-16 text (unpaired surrogate at byte 4)"},
+		{[]byte{0xFE, 0xFF, 0xDC, 0x00}, "not UTF-16 text (unpaired surrogate at byte 2)"},
+		{[]byte{0xFF, 0xFE, 0x00, 0xD8}, "not UTF-16 text (unpaired surrogate at byte 2)"},
+	} {
+		if _, ok, err := UTF16(c.b); !ok || err == nil || err.Error() != c.want {
+			t.Fatalf("%v: got %v, %v, want %q", c.b, ok, err, c.want)
+		}
+	}
+}
+
+func TestLoadReadsUTF16Sources(t *testing.T) {
+	dir := t.TempDir()
+	txt := filepath.Join(dir, "notes.txt")
+	page := filepath.Join(dir, "page.html")
+	bad := filepath.Join(dir, "bad.txt")
+	if err := os.WriteFile(txt, utf16Bytes("stores and “returns” values\r\n", false), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(page, utf16Bytes("<p>The LAG<em>n</em> function</p>", true), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bad, []byte{0xFF, 0xFE, 'a'}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if s, err := Load(txt); err != nil || s.Text != "stores and “returns” values\r\n" {
+		t.Fatalf("text: %q, %v", s.Text, err)
+	}
+	if s, err := Load(page); err != nil || s.Text != "The LAGn function" {
+		t.Fatalf("page: %q, %v", s.Text, err)
+	}
+	if _, err := Load(bad); err == nil || err.Error() != bad+": not UTF-16 text (odd number of bytes)" {
+		t.Fatalf("bad: %v", err)
 	}
 }

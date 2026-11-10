@@ -31,6 +31,8 @@ is turned into text first, or a folder of such files. Folders are read
 recursively, skipping names that start with a dot. A SOURCE that starts
 with http:// or https:// is a web page: it is fetched once into the
 cache, and later runs read it from there, offline.
+Files are read as UTF-8 text, or as UTF-16 when they start with a
+UTF-16 byte order mark (as Notepad and Windows PowerShell 5.1 save them).
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs.
 
@@ -290,7 +292,11 @@ func check(c config) (report, error) {
 		if err != nil {
 			return report{}, err
 		}
-		for _, q := range extract.Quotes(string(b), extract.Options{MinWords: c.minWords}) {
+		text, err := source.Text(b)
+		if err != nil {
+			return report{}, fmt.Errorf("%s: %v", d, err)
+		}
+		for _, q := range extract.Quotes(text, extract.Options{MinWords: c.minWords}) {
 			res := match.Check(q.Text, texts, opt)
 			jq := jsonQuote{
 				Changes:  []jsonChange{},

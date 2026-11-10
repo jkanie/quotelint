@@ -2,10 +2,12 @@
 package source
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	"golang.org/x/net/html"
@@ -17,17 +19,24 @@ type Source struct {
 	Text string
 }
 
-// Load reads a source file. A file ending in .html or .htm is turned into
-// text with HTMLText. Any other file is read as UTF-8 text.
+// Load reads a source file. A file that starts with a UTF-16 byte order
+// mark is read as UTF-16 (see UTF16). Any other file is read as UTF-8 text.
+// A file ending in .html or .htm is then turned into text with HTMLText.
 func Load(path string) (Source, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return Source{}, err
 	}
-	if !utf8.Valid(b) {
-		return Source{}, fmt.Errorf("%s: not UTF-8 text", path)
+	s, isUTF16, err := UTF16(b)
+	if err != nil {
+		return Source{}, fmt.Errorf("%s: %v", path, err)
 	}
-	s := string(b)
+	if !isUTF16 {
+		if !utf8.Valid(b) {
+			return Source{}, fmt.Errorf("%s: not UTF-8 text", path)
+		}
+		s = string(b)
+	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".html", ".htm":
 		s, err = HTMLText(s)
@@ -36,6 +45,54 @@ func Load(path string) (Source, error) {
 		}
 	}
 	return Source{Name: path, Text: s}, nil
+}
+
+// UTF16 decodes b when it starts with a UTF-16 byte order mark: FF FE for
+// little-endian (what Notepad saves as "UTF-16 LE" and what Windows
+// PowerShell 5.1 writes with >), FE FF for big-endian. The mark is not
+// part of the text. ok is false, with no error, when b has no such mark.
+// An odd number of bytes or a surrogate without its pair is an error.
+func UTF16(b []byte) (text string, ok bool, err error) {
+	var big bool
+	switch {
+	case len(b) >= 2 && b[0] == 0xFF && b[1] == 0xFE:
+	case len(b) >= 2 && b[0] == 0xFE && b[1] == 0xFF:
+		big = true
+	default:
+		return "", false, nil
+	}
+	b = b[2:]
+	if len(b)%2 != 0 {
+		return "", true, errors.New("not UTF-16 text (odd number of bytes)")
+	}
+	units := make([]uint16, len(b)/2)
+	for i := range units {
+		if big {
+			units[i] = uint16(b[2*i])<<8 | uint16(b[2*i+1])
+		} else {
+			units[i] = uint16(b[2*i+1])<<8 | uint16(b[2*i])
+		}
+	}
+	for i := 0; i < len(units); i++ {
+		u := rune(units[i])
+		switch {
+		case utf16.IsSurrogate(u) && u < 0xDC00 && i+1 < len(units) && units[i+1] >= 0xDC00 && units[i+1] <= 0xDFFF:
+			i++
+		case utf16.IsSurrogate(u):
+			return "", true, fmt.Errorf("not UTF-16 text (unpaired surrogate at byte %d)", 2+2*i)
+		}
+	}
+	return string(utf16.Decode(units)), true, nil
+}
+
+// Text turns the bytes of a document into text: UTF-16 when the bytes
+// start with a UTF-16 byte order mark, else the bytes as they are.
+func Text(b []byte) (string, error) {
+	s, ok, err := UTF16(b)
+	if err != nil || ok {
+		return s, err
+	}
+	return string(b), nil
 }
 
 // inline lists the elements whose tags are dropped with no space, so that
