@@ -47,10 +47,10 @@ func Load(path string) (Source, error) {
 	return Source{Name: path, Text: s}, nil
 }
 
-// UTF16 decodes b when it starts with a UTF-16 byte order mark: FF FE for
+// UTF16 decodes b when it starts with a UTF-16 byte-order mark: FF FE for
 // little-endian (what Notepad saves as "UTF-16 LE" and what Windows
 // PowerShell 5.1 writes with >), FE FF for big-endian. The mark is not
-// part of the text. ok is false, with no error, when b has no such mark.
+// part of the text. ok is false (with no error) when b has no such mark.
 // An odd number of bytes or a surrogate without its pair is an error.
 func UTF16(b []byte) (text string, ok bool, err error) {
 	var big bool
@@ -86,7 +86,7 @@ func UTF16(b []byte) (text string, ok bool, err error) {
 }
 
 // Text turns the bytes of a document into text: UTF-16 when the bytes
-// start with a UTF-16 byte order mark, else the bytes as they are.
+// start with a UTF-16 byte-order mark, else the bytes as they are.
 func Text(b []byte) (string, error) {
 	s, ok, err := UTF16(b)
 	if err != nil || ok {

@@ -367,7 +367,7 @@ func TestURLFetchErrorExitsTwo(t *testing.T) {
 	}
 }
 
-// le encodes s as UTF-16 LE with a byte order mark, as Notepad saves it.
+// le encodes s as UTF-16 LE with a byte-order mark, as Notepad saves it.
 func le(s string) []byte {
 	b := []byte{0xFF, 0xFE}
 	for _, r := range s {

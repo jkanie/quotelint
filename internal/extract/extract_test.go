@@ -199,3 +199,32 @@ func FuzzQuotes(f *testing.F) {
 		}
 	})
 }
+
+func TestHTMLCommentsAreSkipped(t *testing.T) {
+	doc := "Kept \"a b c\". <!-- \"not this one\" --> Also \"d e f\".\n\n" +
+		"<!--\nA note \"to the editor\"\n\nwith \"a blank line\"\n-->\n" +
+		"After the comment, \"g h i\" on line 8.\n"
+	qs := Quotes(doc, Options{MinWords: 1})
+	got := texts(qs)
+	want := []string{"a b c", "d e f", "g h i"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	if qs[2].Line != 8 {
+		t.Fatalf("line of %q is %d, want 8", qs[2].Text, qs[2].Line)
+	}
+}
+
+func TestUnclosedCommentRunsToTheEnd(t *testing.T) {
+	doc := "Kept \"a b c\".\n\n<!-- open\n\n\"x y z\" stays hidden.\n"
+	if got := texts(Quotes(doc, Options{MinWords: 1})); !reflect.DeepEqual(got, []string{"a b c"}) {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestCommentMarkersInsideFencedCodeAreCode(t *testing.T) {
+	doc := "```\n<!-- not a comment\n```\n\nAfter the fence, \"a b c\".\n"
+	if got := texts(Quotes(doc, Options{MinWords: 1})); !reflect.DeepEqual(got, []string{"a b c"}) {
+		t.Fatalf("got %q", got)
+	}
+}

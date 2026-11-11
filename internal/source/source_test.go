@@ -145,7 +145,7 @@ func TestLoadPicksHTMLByExtension(t *testing.T) {
 
 func TestLoadRejectsNonUTF8(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "bad.txt")
-	// FF FE at the start would be a UTF-16 byte order mark, so the bad byte
+	// FF FE at the start would be a UTF-16 byte-order mark, so the bad byte
 	// comes after a letter.
 	os.WriteFile(p, []byte{'a', 0xff, 0xfe}, 0o644)
 	if _, err := Load(p); err == nil || !strings.Contains(err.Error(), "not UTF-8") {
@@ -176,7 +176,7 @@ func TestExpandSortsDedupesAndSkipsDotNames(t *testing.T) {
 	}
 }
 
-// utf16Bytes encodes s as UTF-16 with a byte order mark.
+// utf16Bytes encodes s as UTF-16 with a byte-order mark.
 func utf16Bytes(s string, big bool) []byte {
 	b := []byte{0xFF, 0xFE}
 	if big {

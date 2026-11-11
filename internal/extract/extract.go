@@ -25,8 +25,9 @@ type Options struct {
 // between 2 letters or digits is an apostrophe, not a mark (see
 // opensSingle and closesSingle). A quote inside a quote is returned as
 // well as the quote around it, which keeps the inner marks in its text.
-// Marks inside fenced code blocks and inline code spans are ignored. A
-// passage may run over several lines, but not past a blank line, so an
+// Marks inside fenced code blocks, in-line code spans, HTML comments
+// (<!-- -->) are ignored. A comment with no closing --> runs to the end of
+// the document, as in CommonMark. A passage may run over several lines, but not past a blank line, so an
 // unclosed mark never swallows the rest of the document.
 func Quotes(doc string, opt Options) []Quote {
 	if opt.MinWords < 1 {
@@ -37,6 +38,7 @@ func Quotes(doc string, opt Options) []Quote {
 	var para []string
 	paraStart := 0
 	fence := ""
+	inComment := false
 	flush := func() {
 		if len(para) > 0 {
 			out = append(out, scan(para, paraStart, opt)...)
@@ -44,6 +46,9 @@ func Quotes(doc string, opt Options) []Quote {
 		para = nil
 	}
 	for i, ln := range lines {
+		if fence == "" {
+			ln, inComment = blankComments(ln, inComment)
+		}
 		t := strings.TrimSpace(ln)
 		if fence != "" {
 			if strings.HasPrefix(t, fence) {
@@ -67,6 +72,35 @@ func Quotes(doc string, opt Options) []Quote {
 	}
 	flush()
 	return out
+}
+
+// blankComments replaces the parts of line that sit inside an HTML comment
+// with spaces, such that offsets and line numbers stay the same. inComment
+// says whether the line starts inside a comment, and the result says
+// whether the next line does.
+func blankComments(line string, inComment bool) (string, bool) {
+	if !inComment && !strings.Contains(line, "<!--") {
+		return line, false
+	}
+	r := []rune(line)
+	for i := 0; i < len(r); i++ {
+		if !inComment {
+			if strings.HasPrefix(string(r[i:]), "<!--") {
+				inComment = true
+				r[i], r[i+1], r[i+2], r[i+3] = ' ', ' ', ' ', ' '
+				i += 3
+			}
+			continue
+		}
+		if strings.HasPrefix(string(r[i:]), "-->") {
+			r[i], r[i+1], r[i+2] = ' ', ' ', ' '
+			i += 2
+			inComment = false
+			continue
+		}
+		r[i] = ' '
+	}
+	return string(r), inComment
 }
 
 // open is 1 quotation mark that is still waiting for its closing mark.
