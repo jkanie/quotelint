@@ -269,7 +269,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	// A skip entry that matches nothing is most often stale: the quote was
 	// fixed, or the line moved. It is named on stderr and changes nothing else.
 	for _, key := range r.unusedSkips {
-		fmt.Fprintf(stderr, "quotelint: %s: no quote matches the skip entry %q\n", c.skip, key)
+		fmt.Fprintf(stderr, "quotelint: %s: no quote matches the skip entry \"%s\"\n", c.skip, key)
 	}
 	if c.json {
 		enc := json.NewEncoder(stdout)

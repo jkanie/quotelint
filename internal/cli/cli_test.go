@@ -151,13 +151,14 @@ func TestSkipFile(t *testing.T) {
 		t.Fatalf("code %d, out:\n%s", code, out)
 	}
 
-	// An entry that matches no quote is named on stderr, and changes nothing else.
-	stale := list + "a quote that is no longer there\tfixed since\n" + d + ":9\tline moved\n"
+	// An entry that matches no quote is named on stderr as written, with no escapes (a Windows path keeps single
+	// back-slashes), and changes nothing else.
+	stale := list + `a quote with a \ that is no longer there` + "\tfixed since\n" + d + ":9\tline moved\n"
 	if err := os.WriteFile(skip, []byte(stale), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	code, out, errs = run("--skip", skip, d, s)
-	want := "quotelint: " + skip + ": no quote matches the skip entry \"a quote that is no longer there\"\n" +
+	want := "quotelint: " + skip + ": no quote matches the skip entry \"a quote with a \\ that is no longer there\"\n" +
 		"quotelint: " + skip + ": no quote matches the skip entry \"" + d + ":9\"\n"
 	if code != 0 || errs != want || !strings.HasSuffix(out, "2 skipped\n") {
 		t.Fatalf("code %d, errs %q, out:\n%s", code, errs, out)
