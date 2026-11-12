@@ -115,6 +115,37 @@ func TestMinWords(t *testing.T) {
 	}
 }
 
+func TestProblemsOnly(t *testing.T) {
+	doc := "Ok: \"stores and return values only from the observations\".\n" +
+		"Old: \"executed conditionally will store and return values\".\n" +
+		"Gone: \"nothing like this sits in the source\".\n"
+	d, s := setup(t, doc)
+	code, out, _ := run("--problems-only", d, s)
+	if code != 1 || strings.Contains(out, "verbatim in") ||
+		!strings.Contains(out, "notes.md:2: differs from") ||
+		!strings.Contains(out, "notes.md:3: not found in any source") ||
+		!strings.Contains(out, "summary: 1 doc, 3 quotes, 1 verbatim, 1 differs, 1 not found") {
+		t.Fatalf("code %d, out:\n%s", code, out)
+	}
+
+	code, out, _ = run("--problems-only", "--json", d, s)
+	var r report
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if code != 1 || len(r.Quotes) != 2 || r.Quotes[0].Line != 2 || r.Quotes[1].Line != 3 ||
+		r.Summary.Quotes != 3 || r.Summary.Verbatim != 1 {
+		t.Fatalf("code %d, out:\n%s", code, out)
+	}
+
+	// With every quote verbatim, only the summary is left, and the exit status stays 0.
+	d, s = setup(t, "SAS: \"stores and return values only from the observations\".\n")
+	code, out, _ = run("--problems-only", d, s)
+	if code != 0 || out != "summary: 1 doc, 1 quote, 1 verbatim, 0 differs, 0 not found\n" {
+		t.Fatalf("code %d, out:\n%q", code, out)
+	}
+}
+
 func TestFoldQuotes(t *testing.T) {
 	dir := t.TempDir()
 	d := filepath.Join(dir, "d.md")

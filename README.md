@@ -98,6 +98,8 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --problems-only    List only quotes that differ or are not found. The
+                     summary still counts every quote.
   --json             Print a JSON object instead of text.
   -h, --help         Print this help.
   -V, --version      Print the version.
@@ -109,6 +111,7 @@ or is not found, 2 on an error.
 - `-s` lets 1 run check a whole folder of drafts (or several files) against the same sources.
 - `--min-words` skips short quoted words and titles (such as "the" or "Run"), which are not quotes of a source.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
+- `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
 - A SOURCE that starts with `http://` or `https://` is a web page. See [Web page sources](#web-page-sources).
 

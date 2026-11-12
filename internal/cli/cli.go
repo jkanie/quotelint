@@ -45,6 +45,8 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --problems-only    List only quotes that differ or are not found. The
+                     summary still counts every quote.
   --json             Print a JSON object instead of text.
   -h, --help         Print this help.
   -V, --version      Print the version.
@@ -59,6 +61,7 @@ type config struct {
 	minWords int
 	fold     bool
 	json     bool
+	problems bool
 	refresh  bool
 	cacheDir string
 }
@@ -83,6 +86,8 @@ func parse(args []string) (config, error) {
 			c.json = true
 		case a == "--fold-quotes":
 			c.fold = true
+		case a == "--problems-only":
+			c.problems = true
 		case a == "--refresh":
 			c.refresh = true
 		case a == "--cache-dir" || strings.HasPrefix(a, "--cache-dir="):
@@ -311,7 +316,10 @@ func check(c config) (report, error) {
 			for _, ch := range res.Changes {
 				jq.Changes = append(jq.Changes, jsonChange(ch))
 			}
-			r.Quotes = append(r.Quotes, jq)
+			r.Summary.Quotes++
+			if !c.problems || res.Status != match.Verbatim {
+				r.Quotes = append(r.Quotes, jq)
+			}
 			switch res.Status {
 			case match.Verbatim:
 				r.Summary.Verbatim++
@@ -323,7 +331,6 @@ func check(c config) (report, error) {
 		}
 	}
 	r.Summary.Docs = len(docs)
-	r.Summary.Quotes = len(r.Quotes)
 	r.Match = r.Summary.Differs == 0 && r.Summary.NotFound == 0
 	return r, nil
 }
