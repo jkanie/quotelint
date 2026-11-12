@@ -1,6 +1,6 @@
 # Roadmap
 
-Planned work after the seed, with an hour estimate per item. The total is 23 hours.
+Planned work after the seed, with an hour estimate per item. The total is 22.5 hours.
 
 ## 1. Pair each quote with its own source, 3 hours
 
@@ -47,10 +47,10 @@ Planned work after the seed, with an hour estimate per item. The total is 23 hou
 - What: `--html FILE` writes a single self-contained page with each quote, its source passage, the changed words marked, plus a filter by status.
 - Why: a long text report is hard to read and hard to share. A page opens in any browser and can go to an editor who does not use a terminal.
 
-## 10. Look-ahead for single marks, 2.5 hours
+## 10. Look-ahead for single marks, 2 hours
 
-- What: before a single mark closes or opens a quote, look ahead in the paragraph for a better pairing, plus a list of common elisions (`'tis`, `'em`, `'n'`, `'90s`).
-- Why: today, a plural possessive such as `students'` ends a single-quoted passage early. A leading elision opens a quote (the README section "What it does" lists both cases). Each gives a wrong quote text, which is then reported as differs or not found.
+- What: before a single mark closes or opens a quote, look ahead in the paragraph for a better pairing.
+- Why: today, a plural possessive such as `students'` ends a single-quoted passage early. A leading elision that is not on the list of common ones (such as `'cause`) opens a quote (the README section "What it does" lists both cases). Each gives a wrong quote text, which is then reported as differs or not found.
 
 ## 11. Release v0.1.0, 2 hours
 
@@ -59,4 +59,4 @@ Planned work after the seed, with an hour estimate per item. The total is 23 hou
 
 ## Total
 
-27.5 hours.
+22.5 hours.

@@ -15,8 +15,7 @@ A command-line tool that checks every quoted passage in your documents against t
   - A curly mark pairs only with a curly mark. A straight mark pairs only with a straight 1.
 - Does not yet handle these single-mark cases:
   - A plural possessive inside a single-quoted passage ends the quote early. `'the students' books are here'` gives the quote `the students`.
-  - An elision at the start of a word (such as `'tis` or `'90s`) opens a quote. A later closing mark in the same paragraph pairs with it. When no mark closes it, it is dropped at the end of the paragraph.
-  - `rock 'n' roll` gives a 1-word quote (`n`), which the default `--min-words 3` skips.
+  - An elision at the start of a word (such as `'cause`) opens a quote, unless it is 1 of these common ones: `'tis`, `'twas`, `'em`, `'n'` (as in `rock 'n' roll`), a decade such as `'90s`. The marks of those never open or close a quote. Any other elision pairs with a later closing mark in the same paragraph. When no mark closes it, it is dropped at the end of the paragraph.
 - Checks 1 document or many. A document can be a file or a folder of `.md`, `.markdown`, `.txt`, `.text` files.
 - Takes 1 source or many. A source can be a file, a folder of text and HTML files (`.html`, `.htm` added to the document endings), a web page URL that is fetched once and kept in a cache.
 - Reads files as UTF-8, or as UTF-16 (little-endian or big-endian) when they start with a UTF-16 byte-order mark, as Notepad and Windows PowerShell 5.1 save them. A UTF-16 file with an odd number of bytes or an unpaired surrogate stops the run with exit code 2.

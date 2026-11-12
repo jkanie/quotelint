@@ -112,9 +112,10 @@ func TestSingleMarks(t *testing.T) {
 		{"curly apostrophes are text", "Don’t stop, it’s here.", []string{}},
 		{"apostrophe inside a quote", "He said 'don't stop the pump' twice.", []string{"don't stop the pump"}},
 		{"curly apostrophe inside a quote", "He said ‘don’t stop the pump’ twice.", []string{"don’t stop the pump"}},
-		{"rock 'n' roll", "It was rock 'n' roll all night.", []string{"n"}},
+		{"rock 'n' roll", "It was rock 'n' roll all night.", []string{}},
 		{"elision never closes", "'Tis true and that is all.", []string{}},
-		{"elision pairs with a later closing mark", "'Tis the season,' she said.", []string{"Tis the season,"}},
+		{"a known elision opens nothing for a later mark to close", "'Tis the season,' she said.", []string{}},
+		{"an elision not on the list pairs with a later closing mark", "'Cause it rains,' she said.", []string{"Cause it rains,"}},
 		{"plural possessive ends a quote early", "He said 'the students' books are here' today.", []string{"the students"}},
 		{"a curly mark does not pair with a straight 1", "‘one two three' ends here.", []string{}},
 	}
@@ -225,6 +226,32 @@ func TestUnclosedCommentRunsToTheEnd(t *testing.T) {
 func TestCommentMarkersInsideFencedCodeAreCode(t *testing.T) {
 	doc := "```\n<!-- not a comment\n```\n\nAfter the fence, \"a b c\".\n"
 	if got := texts(Quotes(doc, Options{MinWords: 1})); !reflect.DeepEqual(got, []string{"a b c"}) {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestCommonElisionsAreNotMarks(t *testing.T) {
+	cases := []struct{ doc, want string }{
+		{"'Tis the season, she said 'a b c' twice.", "a b c"},
+		{"‘Twas late. 'Give 'em the keys now' he said.", "Give 'em the keys now"},
+		{"Back in the '90s she wrote 'a b c' twice.", "a b c"},
+		{"'They play rock 'n' roll all night' he said.", "They play rock 'n' roll all night"},
+		{"“Rock ‘n’ roll,” she said, ‘a b c’.", "Rock ‘n’ roll,"},
+	}
+	for _, c := range cases {
+		got := texts(Quotes(c.doc, Options{MinWords: 1}))
+		if len(got) == 0 || got[0] != c.want {
+			t.Errorf("%q: got %q, want %q 1st", c.doc, got, c.want)
+		}
+	}
+	// A word that only starts like an elision still opens a quote.
+	got := texts(Quotes("She said 'tissue paper here' twice.", Options{MinWords: 1}))
+	if !reflect.DeepEqual(got, []string{"tissue paper here"}) {
+		t.Fatalf("got %q", got)
+	}
+	// Inside a word the mark is not an elision: rock'n'roll.
+	got = texts(Quotes("A rock'n'roll band, 'a b c'.", Options{MinWords: 1}))
+	if !reflect.DeepEqual(got, []string{"a b c"}) {
 		t.Fatalf("got %q", got)
 	}
 }

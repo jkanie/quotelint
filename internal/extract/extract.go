@@ -23,7 +23,8 @@ type Options struct {
 // order of their opening marks. Double marks are straight (" ") or curly
 // (“ ”). Single marks are curly (‘ ’) or straight (' '). A single mark
 // between 2 letters or digits is an apostrophe, not a mark (see
-// opensSingle and closesSingle). A quote inside a quote is returned as
+// opensSingle and closesSingle), and so is the mark of a common elision
+// such as 'tis or '90s (see elision). A quote inside a quote is returned as
 // well as the quote around it, which keeps the inner marks in its text.
 // Marks inside fenced code blocks, in-line code spans, HTML comments
 // (<!-- -->) are ignored. A comment with no closing --> runs to the end of
@@ -143,8 +144,18 @@ func scan(lines []string, first int, opt Options) []Quote {
 	push := func(r rune, i int) {
 		stack = append(stack, open{mark: r, line: line, pos: i, start: i + 1})
 	}
+	skip := -1
 	for i, r := range text {
 		prev, next := at(i-1), at(i+1)
+		if i <= skip {
+			continue
+		}
+		if (r == '\'' || r == '‘') && !inCode {
+			if n := elision(text, i); n > 0 {
+				skip = i + n - 1
+				continue
+			}
+		}
 		switch {
 		case r == '`':
 			inCode = !inCode
@@ -212,6 +223,39 @@ func opensSingle(prev, next rune) bool {
 // "don't" and "it’s" therefore never close a quote.
 func closesSingle(prev, next rune) bool {
 	return prev != 0 && !unicode.IsSpace(prev) && !isWord(next)
+}
+
+// elisionWords are the elisions that start with a mark, written without
+// it. A match ignores case.
+var elisionWords = []string{"tis", "twas", "em"}
+
+// elision returns the length in runes of a common elision that starts
+// with the single mark at offset i, or 0 when there is none. The mark must
+// start a word. It covers 'tis, 'twas, 'em, a decade such as '90s, plus
+// 'n' (as in rock 'n' roll), whose 2 marks are both apostrophes. The
+// marks of an elision neither open nor close a quote.
+func elision(text []rune, i int) int {
+	if i > 0 && isWord(text[i-1]) {
+		return 0
+	}
+	end := i + 1
+	for end < len(text) && isWord(text[end]) {
+		end++
+	}
+	word := strings.ToLower(string(text[i+1 : end]))
+	if word == "n" && end < len(text) && (text[end] == '\'' || text[end] == '’') &&
+		(end+1 == len(text) || !isWord(text[end+1])) {
+		return end + 1 - i
+	}
+	for _, w := range elisionWords {
+		if word == w {
+			return end - i
+		}
+	}
+	if len(word) == 3 && unicode.IsDigit(rune(word[0])) && unicode.IsDigit(rune(word[1])) && word[2] == 's' {
+		return end - i
+	}
+	return 0
 }
 
 func isWord(r rune) bool {
