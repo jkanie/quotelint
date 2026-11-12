@@ -115,6 +115,60 @@ func TestMinWords(t *testing.T) {
 	}
 }
 
+func TestSkipFile(t *testing.T) {
+	doc := "Ok: \"stores and return values only from the observations\".\n" +
+		"Old: \"executed conditionally will store and return values\".\n" +
+		"Gone: \"nothing like  this sits in the source\".\n"
+	d, s := setup(t, doc)
+	skip := filepath.Join(filepath.Dir(d), "skip.txt")
+	list := "# Known paraphrases\n\n" +
+		d + ":2\tthe 2023 wording, kept on purpose\n" +
+		"nothing like this sits in the source\tsaid in a talk, not written\r\n"
+	if err := os.WriteFile(skip, []byte(list), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errs := run("--skip", skip, d, s)
+	if code != 0 || errs != "" ||
+		!strings.Contains(out, "notes.md:2: skipped (the 2023 wording, kept on purpose): \"executed") ||
+		!strings.Contains(out, "notes.md:3: skipped (said in a talk, not written): \"nothing") ||
+		!strings.HasSuffix(out, "summary: 1 doc, 3 quotes, 1 verbatim, 0 differs, 0 not found, 2 skipped\n") {
+		t.Fatalf("code %d, errs %q, out:\n%s", code, errs, out)
+	}
+
+	code, out, _ = run("--skip="+skip, "--json", "--problems-only", d, s)
+	var r report
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || len(r.Quotes) != 0 || r.Summary.Skipped != 2 || r.Summary.Quotes != 3 || !r.Match {
+		t.Fatalf("code %d, out:\n%s", code, out)
+	}
+	code, out, _ = run("--skip", skip, "--json", d, s)
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatal(err)
+	}
+	if code != 0 || r.Quotes[1].Status != "skipped" || r.Quotes[1].Reason != "the 2023 wording, kept on purpose" {
+		t.Fatalf("code %d, out:\n%s", code, out)
+	}
+
+	// A line with no tab, or no reason, stops the run.
+	for _, bad := range []string{"notes.md:2 no tab here\n", "notes.md:2\t  \n", "\treason only\n"} {
+		if err := os.WriteFile(skip, []byte("# ok\n"+bad), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		code, _, errs = run("--skip", skip, d, s)
+		if code != 2 || !strings.Contains(errs, "skip.txt:2: needs what to skip, a tab, then a reason") {
+			t.Fatalf("%q: code %d, errs %q", bad, code, errs)
+		}
+	}
+	if code, _, errs = run("--skip", d+".missing", d, s); code != 2 || errs == "" {
+		t.Fatalf("missing file: code %d, errs %q", code, errs)
+	}
+	if code, _, errs = run(d, s, "--skip"); code != 2 || !strings.Contains(errs, "--skip needs a file") {
+		t.Fatalf("no file: code %d, errs %q", code, errs)
+	}
+}
+
 func TestProblemsOnly(t *testing.T) {
 	doc := "Ok: \"stores and return values only from the observations\".\n" +
 		"Old: \"executed conditionally will store and return values\".\n" +

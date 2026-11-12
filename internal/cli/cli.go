@@ -45,14 +45,16 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --skip FILE        Skip the quotes that FILE lists, each with a reason
+                     (see the README). They count as skipped.
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --json             Print a JSON object instead of text.
   -h, --help         Print this help.
   -V, --version      Print the version.
 
-Exit status: 0 when every quote is verbatim, 1 when any quote differs
-or is not found, 2 on an error.
+Exit status: 0 when every quote is verbatim or skipped, 1 when any
+quote differs or is not found, 2 on an error.
 `
 
 type config struct {
@@ -62,6 +64,7 @@ type config struct {
 	fold     bool
 	json     bool
 	problems bool
+	skip     string
 	refresh  bool
 	cacheDir string
 }
@@ -103,6 +106,19 @@ func parse(args []string) (config, error) {
 				return c, errors.New("--cache-dir needs a folder")
 			}
 			c.cacheDir = v
+		case a == "--skip" || strings.HasPrefix(a, "--skip="):
+			v, ok := strings.CutPrefix(a, "--skip=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--skip needs a file")
+				}
+				i++
+				v = args[i]
+			}
+			if v == "" {
+				return c, errors.New("--skip needs a file")
+			}
+			c.skip = v
 		case a == "-s" || a == "--source" || strings.HasPrefix(a, "--source="):
 			v, ok := strings.CutPrefix(a, "--source=")
 			if !ok {
@@ -159,16 +175,50 @@ type jsonQuote struct {
 	Line     int          `json:"line"`
 	Passage  string       `json:"passage"`
 	Quote    string       `json:"quote"`
+	Reason   string       `json:"reason,omitempty"`
 	Source   string       `json:"source"`
 	Status   string       `json:"status"`
 }
+
+// skipped is the status of a quote that the --skip file lists.
+const skipped = "skipped"
 
 type summary struct {
 	Differs  int `json:"differs"`
 	Docs     int `json:"docs"`
 	NotFound int `json:"not_found"`
 	Quotes   int `json:"quotes"`
+	Skipped  int `json:"skipped"`
 	Verbatim int `json:"verbatim"`
+}
+
+// loadSkips reads a --skip file. Each line holds what to skip, a tab, then
+// the reason. What to skip is either DOC:LINE, as the report writes it, or
+// the quote's text with its white space run together. Blank lines and lines
+// that start with # are left out.
+func loadSkips(path string) (map[string]string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	text, err := source.Text(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", path, err)
+	}
+	skips := map[string]string{}
+	for n, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, reason, ok := strings.Cut(line, "\t")
+		key = match.Normalize(key, match.Options{})
+		reason = strings.TrimSpace(reason)
+		if !ok || key == "" || reason == "" {
+			return nil, fmt.Errorf("%s:%d: needs what to skip, a tab, then a reason", path, n+1)
+		}
+		skips[key] = reason
+	}
+	return skips, nil
 }
 
 // jsonPage records where a web page SOURCE came from in this run.
@@ -258,6 +308,12 @@ func check(c config) (report, error) {
 		}
 		texts = append(texts, match.Prepare(s.Name, s.Text, opt))
 	}
+	var skips map[string]string
+	if c.skip != "" {
+		if skips, err = loadSkips(c.skip); err != nil {
+			return report{}, err
+		}
+	}
 	r := report{Docs: docs, Quotes: []jsonQuote{}}
 	if len(urls) > 0 {
 		dir := c.cacheDir
@@ -302,6 +358,21 @@ func check(c config) (report, error) {
 			return report{}, fmt.Errorf("%s: %v", d, err)
 		}
 		for _, q := range extract.Quotes(text, extract.Options{MinWords: c.minWords}) {
+			r.Summary.Quotes++
+			reason, ok := skips[fmt.Sprintf("%s:%d", d, q.Line)]
+			if !ok {
+				reason, ok = skips[match.Normalize(q.Text, match.Options{})]
+			}
+			if ok {
+				r.Summary.Skipped++
+				if !c.problems {
+					r.Quotes = append(r.Quotes, jsonQuote{
+						Changes: []jsonChange{}, Doc: d, Line: q.Line, Quote: q.Text,
+						Reason: reason, Status: skipped,
+					})
+				}
+				continue
+			}
 			res := match.Check(q.Text, texts, opt)
 			jq := jsonQuote{
 				Changes:  []jsonChange{},
@@ -316,7 +387,6 @@ func check(c config) (report, error) {
 			for _, ch := range res.Changes {
 				jq.Changes = append(jq.Changes, jsonChange(ch))
 			}
-			r.Summary.Quotes++
 			if !c.problems || res.Status != match.Verbatim {
 				r.Quotes = append(r.Quotes, jq)
 			}
@@ -341,6 +411,8 @@ func writeText(w io.Writer, r report) {
 		switch q.Status {
 		case match.Verbatim:
 			fmt.Fprintf(w, "%sverbatim in %s: %s\n", head, q.Source, preview(q.Quote))
+		case skipped:
+			fmt.Fprintf(w, "%sskipped (%s): %s\n", head, q.Reason, preview(q.Quote))
 		case match.Differs:
 			edits := "edits"
 			if q.Distance == 1 {
@@ -364,8 +436,12 @@ func writeText(w io.Writer, r report) {
 		fmt.Fprintf(w, "page: %s (%s %s)\n", p.URL, how, p.FetchedAt)
 	}
 	s := r.Summary
-	fmt.Fprintf(w, "summary: %s, %s, %d verbatim, %d differs, %d not found\n",
+	fmt.Fprintf(w, "summary: %s, %s, %d verbatim, %d differs, %d not found",
 		count(s.Docs, "doc"), count(s.Quotes, "quote"), s.Verbatim, s.Differs, s.NotFound)
+	if s.Skipped > 0 {
+		fmt.Fprintf(w, ", %d skipped", s.Skipped)
+	}
+	fmt.Fprintln(w)
 }
 
 // count writes n and word, with an s on word unless n is 1.

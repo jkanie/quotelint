@@ -1,6 +1,6 @@
 # Roadmap
 
-Planned work after the seed, with an hour estimate per item. The total is 22.5 hours.
+Planned work after the seed, with an hour estimate per item. The total is 21 hours.
 
 ## 1. Pair each quote with its own source, 3 hours
 
@@ -27,36 +27,31 @@ Planned work after the seed, with an hour estimate per item. The total is 22.5 h
 - What: show the differing characters inside a changed word (such as `store[s]`), and colour the change on a terminal.
 - Why: a 1-character change (a hyphen, an accent, a curly apostrophe) is the hardest kind to see in a 2-line quote and source pair.
 
-## 6. Allow-list for known paraphrases, 1.5 hours
-
-- What: a file of quote texts or line numbers that the check skips, each with a reason, plus a count of skipped quotes in the summary.
-- Why: a quoted title or term is not a quote of a source. Without a way to mark it, every run lists the same false hit.
-
-## 7. Configuration file, 1.5 hours
+## 6. Configuration file, 1.5 hours
 
 - What: a JSON file next to the documents that names their sources, the file endings that a folder search reads, the `--min-words` and `--fold-quotes` settings, so that a plain `quotelint DOC` works.
 - Why: a set of documents with 10 sources needs a long command line today, and the same set has to be typed on every run. The file endings of a folder search are fixed today.
 
-## 8. Unicode normalisation option, 1.5 hours
+## 7. Unicode normalisation option, 1.5 hours
 
 - What: `--nfc` to compare quote and source after Unicode NFC normalisation, using `golang.org/x/text`.
 - Why: an accented letter can be stored as 1 code point or as 2. The 2 look the same, but today they count as different words.
 
-## 9. HTML report, 2 hours
+## 8. HTML report, 2 hours
 
 - What: `--html FILE` writes a single self-contained page with each quote, its source passage, the changed words marked, plus a filter by status.
 - Why: a long text report is hard to read and hard to share. A page opens in any browser and can go to an editor who does not use a terminal.
 
-## 10. Look-ahead for single marks, 2 hours
+## 9. Look-ahead for single marks, 2 hours
 
 - What: before a single mark closes or opens a quote, look ahead in the paragraph for a better pairing.
 - Why: today, a plural possessive such as `students'` ends a single-quoted passage early. A leading elision that is not on the list of common ones (such as `'cause`) opens a quote (the README section "What it does" lists both cases). Each gives a wrong quote text, which is then reported as differs or not found.
 
-## 11. Release v0.1.0, 2 hours
+## 10. Release v0.1.0, 2 hours
 
 - What: write a change log, tag v0.1.0, publish binaries for the 3 platforms, make the module installable with `go install github.com/jkanie/quotelint@latest`.
 - Why: a tagged release with binaries lets people use the tool without a Go set-up, and it gives later releases a fixed point to compare against.
 
 ## Total
 
-22.5 hours.
+21 hours.
