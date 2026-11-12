@@ -196,16 +196,19 @@ type summary struct {
 // the reason. What to skip is either DOC:LINE, as the report writes it, or
 // the quote's text with its white space run together. Blank lines and lines
 // that start with # are left out.
-func loadSkips(path string) (map[string]string, error) {
+// The keys also come back in file order, so that unused ones can be named in
+// that order.
+func loadSkips(path string) (map[string]string, []string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	text, err := source.Text(b)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", path, err)
+		return nil, nil, fmt.Errorf("%s: %v", path, err)
 	}
 	skips := map[string]string{}
+	var order []string
 	for n, line := range strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n") {
 		if strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -214,11 +217,14 @@ func loadSkips(path string) (map[string]string, error) {
 		key = match.Normalize(key, match.Options{})
 		reason = strings.TrimSpace(reason)
 		if !ok || key == "" || reason == "" {
-			return nil, fmt.Errorf("%s:%d: needs what to skip, a tab, then a reason", path, n+1)
+			return nil, nil, fmt.Errorf("%s:%d: needs what to skip, a tab, then a reason", path, n+1)
+		}
+		if _, seen := skips[key]; !seen {
+			order = append(order, key)
 		}
 		skips[key] = reason
 	}
-	return skips, nil
+	return skips, order, nil
 }
 
 // jsonPage records where a web page SOURCE came from in this run.
@@ -230,12 +236,14 @@ type jsonPage struct {
 }
 
 type report struct {
-	Docs    []string    `json:"docs"`
-	Match   bool        `json:"match"`
-	Pages   []jsonPage  `json:"pages,omitempty"`
-	Quotes  []jsonQuote `json:"quotes"`
-	Sources []string    `json:"sources"`
-	Summary summary     `json:"summary"`
+	Docs  []string   `json:"docs"`
+	Match bool       `json:"match"`
+	Pages []jsonPage `json:"pages,omitempty"`
+	// unusedSkips are the --skip entries that matched no quote, in file order.
+	unusedSkips []string
+	Quotes      []jsonQuote `json:"quotes"`
+	Sources     []string    `json:"sources"`
+	Summary     summary     `json:"summary"`
 }
 
 // Run runs quotelint with args (without the program name) and returns
@@ -257,6 +265,11 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(stderr, "quotelint: %v\n", err)
 		return 2
+	}
+	// A skip entry that matches nothing is most often stale: the quote was
+	// fixed, or the line moved. It is named on stderr and changes nothing else.
+	for _, key := range r.unusedSkips {
+		fmt.Fprintf(stderr, "quotelint: %s: no quote matches the skip entry %q\n", c.skip, key)
 	}
 	if c.json {
 		enc := json.NewEncoder(stdout)
@@ -309,12 +322,14 @@ func check(c config) (report, error) {
 		texts = append(texts, match.Prepare(s.Name, s.Text, opt))
 	}
 	var skips map[string]string
+	var skipOrder []string
 	if c.skip != "" {
-		if skips, err = loadSkips(c.skip); err != nil {
+		if skips, skipOrder, err = loadSkips(c.skip); err != nil {
 			return report{}, err
 		}
 	}
 	r := report{Docs: docs, Quotes: []jsonQuote{}}
+	used := map[string]bool{}
 	if len(urls) > 0 {
 		dir := c.cacheDir
 		if dir == "" {
@@ -359,9 +374,14 @@ func check(c config) (report, error) {
 		}
 		for _, q := range extract.Quotes(text, extract.Options{MinWords: c.minWords}) {
 			r.Summary.Quotes++
-			reason, ok := skips[fmt.Sprintf("%s:%d", d, q.Line)]
+			key := fmt.Sprintf("%s:%d", d, q.Line)
+			reason, ok := skips[key]
 			if !ok {
-				reason, ok = skips[match.Normalize(q.Text, match.Options{})]
+				key = match.Normalize(q.Text, match.Options{})
+				reason, ok = skips[key]
+			}
+			if ok {
+				used[key] = true
 			}
 			if ok {
 				r.Summary.Skipped++
@@ -401,6 +421,11 @@ func check(c config) (report, error) {
 		}
 	}
 	r.Summary.Docs = len(docs)
+	for _, key := range skipOrder {
+		if !used[key] {
+			r.unusedSkips = append(r.unusedSkips, key)
+		}
+	}
 	r.Match = r.Summary.Differs == 0 && r.Summary.NotFound == 0
 	return r, nil
 }
