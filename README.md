@@ -103,6 +103,8 @@ Options:
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --json             Print a JSON object instead of text.
+  -q, --quiet        Print nothing on stdout (wins over --json). The exit
+                     status gives the result. Messages on stderr stay.
   -h, --help         Print this help.
   -V, --version      Print the version.
 
@@ -115,6 +117,7 @@ quote differs or is not found, 2 on an error.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.
+- `-q` or `--quiet` prints nothing on stdout, for a script or a pre-commit hook that needs only the exit status (0 when every quote is verbatim or skipped, 1 when any differs or is not found). It wins over `--json`. An error still prints on stderr and exits with 2.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
 - A SOURCE that starts with `http://` or `https://` is a web page. See [Web page sources](#web-page-sources).
 

@@ -213,6 +213,26 @@ func TestProblemsOnly(t *testing.T) {
 	}
 }
 
+func TestQuiet(t *testing.T) {
+	doc := "Ok: \"stores and return values only from the observations\".\n" +
+		"Gone: \"nothing like this sits in the source\".\n"
+	d, s := setup(t, doc)
+	for _, flags := range [][]string{{"-q"}, {"--quiet"}, {"--quiet", "--json"}} {
+		code, out, errOut := run(append(flags, d, s)...)
+		if code != 1 || out != "" || errOut != "" {
+			t.Fatalf("%v: code %d, out %q, stderr %q", flags, code, out, errOut)
+		}
+	}
+	d, s = setup(t, "SAS: \"stores and return values only from the observations\".\n")
+	if code, out, _ := run("-q", d, s); code != 0 || out != "" {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+	// An error still prints, with exit status 2.
+	if code, out, errOut := run("-q", d, filepath.Join(t.TempDir(), "missing.txt")); code != 2 || out != "" || errOut == "" {
+		t.Fatalf("code %d, out %q, stderr %q", code, out, errOut)
+	}
+}
+
 func TestFoldQuotes(t *testing.T) {
 	dir := t.TempDir()
 	d := filepath.Join(dir, "d.md")

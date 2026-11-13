@@ -50,6 +50,8 @@ Options:
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --json             Print a JSON object instead of text.
+  -q, --quiet        Print nothing on stdout (wins over --json). The exit
+                     status gives the result. Messages on stderr stay.
   -h, --help         Print this help.
   -V, --version      Print the version.
 
@@ -63,6 +65,7 @@ type config struct {
 	minWords int
 	fold     bool
 	json     bool
+	quiet    bool
 	problems bool
 	skip     string
 	refresh  bool
@@ -87,6 +90,8 @@ func parse(args []string) (config, error) {
 			return c, errVersion
 		case a == "--json":
 			c.json = true
+		case a == "-q" || a == "--quiet":
+			c.quiet = true
 		case a == "--fold-quotes":
 			c.fold = true
 		case a == "--problems-only":
@@ -271,7 +276,9 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	for _, key := range r.unusedSkips {
 		fmt.Fprintf(stderr, "quotelint: %s: no quote matches the skip entry \"%s\"\n", c.skip, key)
 	}
-	if c.json {
+	if c.quiet {
+		// Nothing on stdout: the exit status (0 or 1) is the answer.
+	} else if c.json {
 		enc := json.NewEncoder(stdout)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "  ")
