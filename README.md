@@ -189,6 +189,7 @@ $ quotelint --json --min-words 11 review.md sources/manual.html
     "review.md"
   ],
   "match": false,
+  "quotelint_version": "0.1.0",
   "quotes": [
     {
       "changes": [],
@@ -231,7 +232,7 @@ $ echo $?
 1
 ```
 
-`distance` is the number of word edits, and it is 0 for a quote that is verbatim or not found.
+`quotelint_version` names the release that wrote the report. `distance` is the number of word edits, and it is 0 for a quote that is verbatim or not found.
 
 A run on `note.md` (a made-up service note) with single and nested quotes:
 

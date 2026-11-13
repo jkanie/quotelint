@@ -80,7 +80,7 @@ func TestJSONIsValidAndSorted(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &v); err != nil {
 		t.Fatalf("bad JSON: %v\n%s", err, out)
 	}
-	keys := []string{`"docs"`, `"match"`, `"quotes"`, `"sources"`, `"summary"`}
+	keys := []string{`"docs"`, `"match"`, `"quotelint_version"`, `"quotes"`, `"sources"`, `"summary"`}
 	last := -1
 	for _, k := range keys {
 		i := strings.Index(out, k)
@@ -91,6 +91,11 @@ func TestJSONIsValidAndSorted(t *testing.T) {
 	}
 	if v["match"] != false {
 		t.Fatalf("match = %v", v["match"])
+	}
+	// The same version as -V prints.
+	_, ver, _ := run("-V")
+	if want := "quotelint " + v["quotelint_version"].(string) + "\n"; ver != want {
+		t.Fatalf("quotelint_version %q, -V printed %q", v["quotelint_version"], ver)
 	}
 }
 

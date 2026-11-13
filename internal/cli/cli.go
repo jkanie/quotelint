@@ -244,6 +244,9 @@ type report struct {
 	Docs  []string   `json:"docs"`
 	Match bool       `json:"match"`
 	Pages []jsonPage `json:"pages,omitempty"`
+	// Version names the quotelint that wrote the report, such that a saved
+	// report can be told apart from 1 written by a later release.
+	Version string `json:"quotelint_version"`
 	// unusedSkips are the --skip entries that matched no quote, in file order.
 	unusedSkips []string
 	Quotes      []jsonQuote `json:"quotes"`
@@ -335,7 +338,7 @@ func check(c config) (report, error) {
 			return report{}, err
 		}
 	}
-	r := report{Docs: docs, Quotes: []jsonQuote{}}
+	r := report{Docs: docs, Quotes: []jsonQuote{}, Version: Version}
 	used := map[string]bool{}
 	if len(urls) > 0 {
 		dir := c.cacheDir
