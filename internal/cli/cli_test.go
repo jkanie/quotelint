@@ -218,6 +218,36 @@ func TestProblemsOnly(t *testing.T) {
 	}
 }
 
+func TestSummary(t *testing.T) {
+	doc := "Ok: \"stores and return values only from the observations\".\n" +
+		"Gone: \"nothing like this sits in the source\".\n"
+	d, s := setup(t, doc)
+	_, full, _ := run(d, s)
+	lines := strings.Split(strings.TrimSuffix(full, "\n"), "\n")
+	code, out, _ := run("--summary", d, s)
+	if code != 1 || out != lines[len(lines)-1]+"\n" ||
+		out != "summary: 1 doc, 2 quotes, 1 verbatim, 0 differs, 1 not found\n" {
+		t.Fatalf("code %d, out %q", code, out)
+	}
+	// With --problems-only the summary line is the same, since it counts every quote.
+	if _, again, _ := run("--summary", "--problems-only", d, s); again != out {
+		t.Fatalf("with --problems-only: %q", again)
+	}
+	// --json and --quiet win over --summary.
+	_, js, _ := run("--json", d, s)
+	if _, got, _ := run("--summary", "--json", d, s); got != js {
+		t.Fatalf("--json: %q", got)
+	}
+	if code, got, _ := run("--summary", "-q", d, s); code != 1 || got != "" {
+		t.Fatalf("-q: code %d, out %q", code, got)
+	}
+	d, s = setup(t, "SAS: \"stores and return values only from the observations\".\n")
+	if code, got, _ := run(d, s, "--summary"); code != 0 ||
+		got != "summary: 1 doc, 1 quote, 1 verbatim, 0 differs, 0 not found\n" {
+		t.Fatalf("all verbatim: code %d, out %q", code, got)
+	}
+}
+
 func TestQuiet(t *testing.T) {
 	doc := "Ok: \"stores and return values only from the observations\".\n" +
 		"Gone: \"nothing like this sits in the source\".\n"

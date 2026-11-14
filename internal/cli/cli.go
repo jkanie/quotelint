@@ -49,6 +49,8 @@ Options:
                      (see the README). They count as skipped.
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
+  --summary          Print only the summary line (--json and --quiet
+                     win).
   --json             Print a JSON object instead of text.
   -q, --quiet        Print nothing on stdout (wins over --json). The exit
                      status gives the result. Messages on stderr stay.
@@ -67,6 +69,7 @@ type config struct {
 	json     bool
 	quiet    bool
 	problems bool
+	summary  bool
 	skip     string
 	refresh  bool
 	cacheDir string
@@ -96,6 +99,8 @@ func parse(args []string) (config, error) {
 			c.fold = true
 		case a == "--problems-only":
 			c.problems = true
+		case a == "--summary":
+			c.summary = true
 		case a == "--refresh":
 			c.refresh = true
 		case a == "--cache-dir" || strings.HasPrefix(a, "--cache-dir="):
@@ -289,6 +294,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 			fmt.Fprintf(stderr, "quotelint: %v\n", err)
 			return 2
 		}
+	} else if c.summary {
+		writeSummary(stdout, r.Summary)
 	} else {
 		writeText(stdout, r)
 	}
@@ -470,7 +477,11 @@ func writeText(w io.Writer, r report) {
 		}
 		fmt.Fprintf(w, "page: %s (%s %s)\n", p.URL, how, p.FetchedAt)
 	}
-	s := r.Summary
+	writeSummary(w, r.Summary)
+}
+
+// writeSummary writes the last line of the text report.
+func writeSummary(w io.Writer, s summary) {
 	fmt.Fprintf(w, "summary: %s, %s, %d verbatim, %d differs, %d not found",
 		count(s.Docs, "doc"), count(s.Quotes, "quote"), s.Verbatim, s.Differs, s.NotFound)
 	if s.Skipped > 0 {
