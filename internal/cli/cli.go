@@ -51,6 +51,9 @@ Options:
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
                      win).
+  --fail-on WHAT      Which quotes make the exit status 1: any (the
+                     default, a quote that differs or is not found) or
+                     not-found (only a quote that is not found).
   --json             Print a JSON object instead of text.
   -q, --quiet        Print nothing on stdout (wins over --json). The exit
                      status gives the result. Messages on stderr stay.
@@ -58,13 +61,15 @@ Options:
   -V, --version      Print the version.
 
 Exit status: 0 when every quote is verbatim or skipped, 1 when any
-quote differs or is not found, 2 on an error.
+quote differs or is not found (with --fail-on not-found, only when 1 is
+not found), 2 on an error.
 `
 
 type config struct {
 	docs     []string
 	sources  []string
 	minWords int
+	failOn   string
 	fold     bool
 	json     bool
 	quiet    bool
@@ -79,7 +84,7 @@ var errHelp = errors.New("help")
 var errVersion = errors.New("version")
 
 func parse(args []string) (config, error) {
-	c := config{minWords: 3}
+	c := config{minWords: 3, failOn: "any"}
 	var pos []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -153,6 +158,19 @@ func parse(args []string) (config, error) {
 				return c, fmt.Errorf("--min-words needs a whole number of 1 or more, got %q", v)
 			}
 			c.minWords = n
+		case a == "--fail-on" || strings.HasPrefix(a, "--fail-on="):
+			v, ok := strings.CutPrefix(a, "--fail-on=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--fail-on needs any or not-found")
+				}
+				i++
+				v = args[i]
+			}
+			if v != "any" && v != "not-found" {
+				return c, fmt.Errorf("--fail-on needs any or not-found, got %q", v)
+			}
+			c.failOn = v
 		case strings.HasPrefix(a, "-") && a != "-":
 			return c, fmt.Errorf("unknown option %s", a)
 		default:
@@ -299,7 +317,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	} else {
 		writeText(stdout, r)
 	}
-	if r.Match {
+	// With --fail-on not-found, a quote that differs is still reported but leaves the exit status at 0.
+	if r.Match || (c.failOn == "not-found" && r.Summary.NotFound == 0) {
 		return 0
 	}
 	return 1

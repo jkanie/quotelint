@@ -218,6 +218,36 @@ func TestProblemsOnly(t *testing.T) {
 	}
 }
 
+func TestFailOn(t *testing.T) {
+	differs := "Edited: \"stores and return values only from the observation\".\n"
+	d, s := setup(t, differs)
+	_, full, _ := run(d, s)
+	for _, args := range [][]string{{d, s}, {"--fail-on", "any", d, s}, {"--fail-on=any", d, s}} {
+		if code, _, _ := run(args...); code != 1 {
+			t.Fatalf("%v: code %d", args, code)
+		}
+	}
+	// The quote that differs is still reported, the exit status is 0.
+	for _, args := range [][]string{{"--fail-on", "not-found", d, s}, {d, s, "--fail-on=not-found"}} {
+		if code, out, _ := run(args...); code != 0 || out != full {
+			t.Fatalf("%v: code %d, out %q", args, code, out)
+		}
+	}
+	d, s = setup(t, differs+"Gone: \"nothing like this sits in the source\".\n")
+	if code, _, _ := run("--fail-on", "not-found", d, s); code != 1 {
+		t.Fatalf("not found: code %d", code)
+	}
+	for arg, msg := range map[string]string{
+		"--fail-on=differs": `--fail-on needs any or not-found, got "differs"`,
+		"--fail-on":         "--fail-on needs any or not-found",
+	} {
+		code, _, errOut := run(arg)
+		if code != 2 || !strings.Contains(errOut, msg) {
+			t.Fatalf("%s: code %d, stderr %q", arg, code, errOut)
+		}
+	}
+}
+
 func TestSummary(t *testing.T) {
 	doc := "Ok: \"stores and return values only from the observations\".\n" +
 		"Gone: \"nothing like this sits in the source\".\n"

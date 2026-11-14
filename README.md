@@ -104,6 +104,9 @@ Options:
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
                      win).
+  --fail-on WHAT      Which quotes make the exit status 1: any (the
+                     default, a quote that differs or is not found) or
+                     not-found (only a quote that is not found).
   --json             Print a JSON object instead of text.
   -q, --quiet        Print nothing on stdout (wins over --json). The exit
                      status gives the result. Messages on stderr stay.
@@ -111,7 +114,8 @@ Options:
   -V, --version      Print the version.
 
 Exit status: 0 when every quote is verbatim or skipped, 1 when any
-quote differs or is not found, 2 on an error.
+quote differs or is not found (with --fail-on not-found, only when 1 is
+not found), 2 on an error.
 ```
 
 - `-s` lets 1 run check a whole folder of drafts (or several files) against the same sources.
@@ -119,6 +123,7 @@ quote differs or is not found, 2 on an error.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.
+- `--fail-on not-found` keeps the exit status at 0 when quotes only differ, for a CI step that accepts edited quotes but not invented ones. Those quotes are still listed.
 - `--summary` prints the summary line alone, without the quotes or the `page:` lines, for a CI log that needs only the counts. The exit status stays the same.
 - `-q` or `--quiet` prints nothing on stdout, for a script or a pre-commit hook that needs only the exit status (0 when every quote is verbatim or skipped, 1 when any differs or is not found). It wins over `--json`. An error still prints on stderr and exits with 2.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
