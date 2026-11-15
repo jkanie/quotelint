@@ -87,7 +87,9 @@ cache, and later runs read it from there, offline.
 Files are read as UTF-8 text, or as UTF-16 when they start with a
 UTF-16 byte-order mark (as Notepad and Windows PowerShell 5.1 save them).
 
-With no -s, the 1st path is the DOC and the rest are SOURCEs.
+With no -s, the 1st path is the DOC and the rest are SOURCEs. A DOC
+of - is read from standard input and named - in the report, before
+the other DOCs.
 
 Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
@@ -129,6 +131,7 @@ not found), 2 on an error.
 - `--summary` prints the summary line alone, without the quotes or the `page:` lines, for a CI log that needs only the counts. The exit status stays the same.
 - `-q` or `--quiet` prints nothing on stdout, for a script or a pre-commit hook that needs only the exit status (0 when every quote is verbatim or skipped, 1 when any differs or is not found). It wins over `--json`. An error still prints on stderr and exits with 2.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
+- A DOC of `-` reads the document from standard input, such as `git show HEAD:notes.md | quotelint - sources/` for the committed version of a file. It is named `-` in the report and comes before the other DOCs. A file named `-` is given as `./-`. A SOURCE cannot be `-`.
 - A SOURCE that starts with `http://` or `https://` is a web page. See [Web page sources](#web-page-sources).
 
 ## Web page sources

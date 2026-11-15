@@ -16,6 +16,9 @@ import (
 	"github.com/jkanie/quotelint/internal/source"
 )
 
+// Stdin is where a DOC of - is read from. Tests set it.
+var Stdin io.Reader = os.Stdin
+
 // Version is the program version.
 const Version = "0.1.0"
 
@@ -34,7 +37,9 @@ cache, and later runs read it from there, offline.
 Files are read as UTF-8 text, or as UTF-16 when they start with a
 UTF-16 byte-order mark (as Notepad and Windows PowerShell 5.1 save them).
 
-With no -s, the 1st path is the DOC and the rest are SOURCEs.
+With no -s, the 1st path is the DOC and the rest are SOURCEs. A DOC
+of - is read from standard input and named - in the report, before
+the other DOCs.
 
 Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
@@ -329,12 +334,31 @@ func Run(args []string, stdout, stderr io.Writer) int {
 }
 
 func check(c config) (report, error) {
-	docs, err := source.Expand(c.docs, source.DocExts)
-	if err != nil {
-		return report{}, err
+	// A DOC of - is standard input. It goes 1st, and the rest are expanded as paths.
+	var docs, docPaths []string
+	for _, d := range c.docs {
+		switch {
+		case d != "-":
+			docPaths = append(docPaths, d)
+		case len(docs) > 0:
+			return report{}, errors.New("a DOC of - (standard input) can be given only once")
+		default:
+			docs = append(docs, "-")
+		}
 	}
+	if len(docPaths) > 0 {
+		more, err := source.Expand(docPaths, source.DocExts)
+		if err != nil {
+			return report{}, err
+		}
+		docs = append(docs, more...)
+	}
+	var err error
 	var paths, urls []string
 	for _, s := range c.sources {
+		if s == "-" {
+			return report{}, errors.New("a SOURCE cannot be - (standard input), only a DOC can")
+		}
 		if source.IsURL(s) {
 			urls = append(urls, s)
 		} else {
@@ -347,7 +371,11 @@ func check(c config) (report, error) {
 		if err != nil {
 			return report{}, err
 		}
-		srcs = source.Without(srcs, docs)
+		fileDocs := docs
+		if len(docs) > 0 && docs[0] == "-" {
+			fileDocs = docs[1:]
+		}
+		srcs = source.Without(srcs, fileDocs)
 	}
 	if len(srcs) == 0 && len(urls) == 0 {
 		return report{}, errors.New("no SOURCE left once the DOCs are left out")
@@ -404,7 +432,12 @@ func check(c config) (report, error) {
 	}
 	r.Sources = srcs
 	for _, d := range docs {
-		b, err := os.ReadFile(d)
+		var b []byte
+		if d == "-" {
+			b, err = io.ReadAll(Stdin)
+		} else {
+			b, err = os.ReadFile(d)
+		}
 		if err != nil {
 			return report{}, err
 		}

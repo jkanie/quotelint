@@ -323,6 +323,43 @@ func TestIgnoreCase(t *testing.T) {
 	}
 }
 
+func TestDashDocReadsStandardInput(t *testing.T) {
+	d, s := setup(t, "x\n")
+	saved := Stdin
+	defer func() { Stdin = saved }()
+	Stdin = strings.NewReader("Ok: \"stores and return values only from the observations\".\n")
+	code, out, errOut := run("-", s)
+	want := "-:1: verbatim in " + s + ": \"stores and return values only from the observations\"\n" +
+		"summary: 1 doc, 1 quote, 1 verbatim, 0 differs, 0 not found\n"
+	if code != 0 || out != want {
+		t.Fatalf("stdin doc: code %d, err %q:\n%s", code, errOut, out)
+	}
+	// With -s, - comes 1st, before the DOC files.
+	write(t, d, "Bad: \"stores and returns values only from the observations\".\n")
+	Stdin = strings.NewReader("Ok: \"stores and return values only from the observations\".\n")
+	code, out, errOut = run("--json", "-s", s, d, "-")
+	var r struct {
+		Docs   []string `json:"docs"`
+		Quotes []struct {
+			Doc    string `json:"doc"`
+			Status string `json:"status"`
+		} `json:"quotes"`
+	}
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	if code != 1 || strings.Join(r.Docs, " ") != "- "+d || len(r.Quotes) != 2 ||
+		r.Quotes[0].Doc != "-" || r.Quotes[0].Status != "verbatim" || r.Quotes[1].Status != "differs" {
+		t.Fatalf("stdin doc with -s: code %d, err %q:\n%s", code, errOut, out)
+	}
+	for _, c := range [][]string{{"-s", s, "-", "-"}, {d, "-"}, {"-s", "-", d}} {
+		code, out, errOut := run(c...)
+		if code != 2 || out != "" || !strings.HasPrefix(errOut, "quotelint: a ") {
+			t.Fatalf("%q: code %d, out %q, err %q", c, code, out, errOut)
+		}
+	}
+}
+
 func TestErrorsExitTwo(t *testing.T) {
 	d, s := setup(t, "x\n")
 	cases := [][]string{
