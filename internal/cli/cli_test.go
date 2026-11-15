@@ -120,6 +120,26 @@ func TestMinWords(t *testing.T) {
 	}
 }
 
+func TestMaxWords(t *testing.T) {
+	d, s := setup(t, "\"made up words\" and \"the moon is made of cheese\"\n")
+	_, out, _ := run("--max-words", "3", d, s)
+	if !strings.Contains(out, ":1: not found in any source: \"made up words\"\n") || !strings.Contains(out, "summary: 1 doc, 1 quote,") {
+		t.Fatalf("out:\n%s", out)
+	}
+	_, out, _ = run("--max-words=6", d, s)
+	if !strings.Contains(out, "summary: 1 doc, 2 quotes,") {
+		t.Fatalf("out:\n%s", out)
+	}
+	// The default --min-words 3 is above 2, and --min-words 1 is not.
+	code, out, errOut := run("--max-words", "2", d, s)
+	if code != 2 || out != "" || errOut != "quotelint: --max-words 2 is below --min-words 3, so no quote could be checked\nTry quotelint --help.\n" {
+		t.Fatalf("code %d, out %q, err %q", code, out, errOut)
+	}
+	if code, _, errOut := run("--min-words", "1", "--max-words", "2", d, s); code == 2 {
+		t.Fatalf("err %q", errOut)
+	}
+}
+
 func TestSkipFile(t *testing.T) {
 	doc := "Ok: \"stores and return values only from the observations\".\n" +
 		"Old: \"executed conditionally will store and return values\".\n" +
@@ -368,6 +388,9 @@ func TestErrorsExitTwo(t *testing.T) {
 		{"--bogus", d, s},
 		{"--min-words", "0", d, s},
 		{"--min-words"},
+		{"--max-words", "0", d, s},
+		{"--max-words", "x", d, s},
+		{"--max-words"},
 		{filepath.Join(filepath.Dir(d), "missing.md"), s},
 		{d, filepath.Join(filepath.Dir(d), "missing.html")},
 	}

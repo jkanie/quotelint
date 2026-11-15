@@ -95,6 +95,8 @@ Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
                      other path is then a DOC.
   --min-words N      Check only quotes of N or more words (default 3).
+  --max-words N      Check only quotes of N or fewer words, such as to
+                     leave out long passages (default: no limit).
   --refresh          Fetch every web page SOURCE again, then update the
                      cache.
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
@@ -123,6 +125,7 @@ not found), 2 on an error.
 
 - `-s` lets 1 run check a whole folder of drafts (or several files) against the same sources.
 - `--min-words` skips short quoted words and titles (such as "the" or "Run"), which are not quotes of a source.
+- `--max-words` skips long quotes, such as a whole paragraph in quotation marks that a reviewer checks another way. Each quote inside a quote counts its own words, so a short quote inside a long 1 is still checked. A `--max-words` below `--min-words` is an error (exit 2), since no quote could be checked.
 - `--ignore-case` lowers every letter on both sides, for a quote that starts with a capital where the source runs on mid-sentence. It is off by default for the same reason. The passage shown for a quote that differs is then in lower case.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.

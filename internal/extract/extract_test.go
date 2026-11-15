@@ -79,6 +79,19 @@ func TestMinWords(t *testing.T) {
 	}
 }
 
+func TestMaxWords(t *testing.T) {
+	doc := "Short \"no\" and \"a b\" and \"a b c\" and \"a b c d\"."
+	got := texts(Quotes(doc, Options{MinWords: 2, MaxWords: 3}))
+	if !reflect.DeepEqual(got, []string{"a b", "a b c"}) {
+		t.Fatalf("got %q", got)
+	}
+	// Each level counts on its own: the outer quote is too long, the inner 1 is kept.
+	got = texts(Quotes("“The manual says ‘cool it now’ before the next run.”", Options{MinWords: 1, MaxWords: 3}))
+	if !reflect.DeepEqual(got, []string{"cool it now"}) {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestStraightInsideCurlyIsNested(t *testing.T) {
 	doc := "“she wrote \"yes\" twice”"
 	got := texts(Quotes(doc, Options{MinWords: 1}))

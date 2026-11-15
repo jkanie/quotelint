@@ -45,6 +45,8 @@ Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
                      other path is then a DOC.
   --min-words N      Check only quotes of N or more words (default 3).
+  --max-words N      Check only quotes of N or fewer words, such as to
+                     leave out long passages (default: no limit).
   --refresh          Fetch every web page SOURCE again, then update the
                      cache.
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
@@ -75,6 +77,7 @@ type config struct {
 	docs     []string
 	sources  []string
 	minWords int
+	maxWords int
 	failOn   string
 	fold     bool
 	foldCase bool
@@ -167,6 +170,20 @@ func parse(args []string) (config, error) {
 				return c, fmt.Errorf("--min-words needs a whole number of 1 or more, got %q", v)
 			}
 			c.minWords = n
+		case a == "--max-words" || strings.HasPrefix(a, "--max-words="):
+			v, ok := strings.CutPrefix(a, "--max-words=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--max-words needs a number")
+				}
+				i++
+				v = args[i]
+			}
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 1 {
+				return c, fmt.Errorf("--max-words needs a whole number of 1 or more, got %q", v)
+			}
+			c.maxWords = n
 		case a == "--fail-on" || strings.HasPrefix(a, "--fail-on="):
 			v, ok := strings.CutPrefix(a, "--fail-on=")
 			if !ok {
@@ -185,6 +202,9 @@ func parse(args []string) (config, error) {
 		default:
 			pos = append(pos, a)
 		}
+	}
+	if c.maxWords > 0 && c.maxWords < c.minWords {
+		return c, fmt.Errorf("--max-words %d is below --min-words %d, so no quote could be checked", c.maxWords, c.minWords)
 	}
 	if len(c.sources) > 0 {
 		if len(pos) == 0 {
@@ -445,7 +465,7 @@ func check(c config) (report, error) {
 		if err != nil {
 			return report{}, fmt.Errorf("%s: %v", d, err)
 		}
-		for _, q := range extract.Quotes(text, extract.Options{MinWords: c.minWords}) {
+		for _, q := range extract.Quotes(text, extract.Options{MinWords: c.minWords, MaxWords: c.maxWords}) {
 			r.Summary.Quotes++
 			key := fmt.Sprintf("%s:%d", d, q.Line)
 			reason, ok := skips[key]

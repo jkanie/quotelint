@@ -17,6 +17,8 @@ type Quote struct {
 type Options struct {
 	// MinWords drops passages with fewer words. Values below 1 count as 1.
 	MinWords int
+	// MaxWords drops passages with more words. 0 keeps every length.
+	MaxWords int
 }
 
 // Quotes returns every passage between a pair of quotation marks, in the
@@ -136,7 +138,7 @@ func scan(lines []string, first int, opt Options) []Quote {
 	closeAt := func(k, i int) {
 		o := stack[k]
 		q := string(text[o.start:i])
-		if len(strings.Fields(q)) >= opt.MinWords {
+		if n := len(strings.Fields(q)); n >= opt.MinWords && (opt.MaxWords == 0 || n <= opt.MaxWords) {
 			got = append(got, found{pos: o.pos, q: Quote{Line: o.line, Text: q}})
 		}
 		stack = stack[:k]
