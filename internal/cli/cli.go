@@ -45,13 +45,14 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
                      win).
-  --fail-on WHAT      Which quotes make the exit status 1: any (the
+  --fail-on WHAT     Which quotes make the exit status 1: any (the
                      default, a quote that differs or is not found) or
                      not-found (only a quote that is not found).
   --json             Print a JSON object instead of text.
@@ -71,6 +72,7 @@ type config struct {
 	minWords int
 	failOn   string
 	fold     bool
+	foldCase bool
 	json     bool
 	quiet    bool
 	problems bool
@@ -102,6 +104,8 @@ func parse(args []string) (config, error) {
 			c.quiet = true
 		case a == "--fold-quotes":
 			c.fold = true
+		case a == "--ignore-case":
+			c.foldCase = true
 		case a == "--problems-only":
 			c.problems = true
 		case a == "--summary":
@@ -348,7 +352,7 @@ func check(c config) (report, error) {
 	if len(srcs) == 0 && len(urls) == 0 {
 		return report{}, errors.New("no SOURCE left once the DOCs are left out")
 	}
-	opt := match.Options{FoldQuotes: c.fold}
+	opt := match.Options{FoldQuotes: c.fold, FoldCase: c.foldCase}
 	var texts []match.Text
 	for _, p := range srcs {
 		s, err := source.Load(p)

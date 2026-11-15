@@ -97,6 +97,23 @@ func TestFoldQuotesMakesVerbatim(t *testing.T) {
 	}
 }
 
+func TestFoldCaseMakesVerbatim(t *testing.T) {
+	s := "the method stores and returns values only from the observations."
+	q := "The method stores and returns values only from the observations."
+	if r := Check(q, src("s", s), Options{}); r.Status == Verbatim {
+		t.Fatalf("strict: got %+v", r)
+	}
+	opt := Options{FoldCase: true}
+	if r := Check(q, []Text{Prepare("s", s, opt)}, opt); r.Status != Verbatim {
+		t.Fatalf("folded: got %+v", r)
+	}
+	// A real word change still differs with case folded.
+	r := Check("The method stores and keeps values only from the observations.", []Text{Prepare("s", s, opt)}, opt)
+	if r.Status != Differs || r.Distance != 1 || !reflect.DeepEqual(r.Changes, []Change{{"keeps", "returns"}}) {
+		t.Fatalf("change: got %+v", r)
+	}
+}
+
 func TestEdgePunctuationIsLeeway(t *testing.T) {
 	s := "(The filter should be rinsed after every 5 runs.) Next."
 	r := Check("filter must be rinsed after every 5 runs", src("s", s), Options{})

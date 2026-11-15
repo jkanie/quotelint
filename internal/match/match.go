@@ -21,6 +21,10 @@ type Options struct {
 	// straight forms. Off by default, because a quote must keep the
 	// source's own characters.
 	FoldQuotes bool
+	// FoldCase treats upper and lower case as equal, such that a quote may
+	// start with a capital where the source runs on mid-sentence. Off by
+	// default, for the same reason as FoldQuotes.
+	FoldCase bool
 }
 
 // Change is 1 run of differing words between a quote and its nearest
@@ -54,10 +58,14 @@ var folder = strings.NewReplacer(
 
 // Normalize collapses every run of white space (no-break spaces
 // included) to 1 space and trims both ends. With FoldQuotes, it also maps
-// curly quotation marks to straight ones. No other character changes.
+// curly quotation marks to straight ones. With FoldCase, it also lowers
+// every letter. No other character changes.
 func Normalize(s string, opt Options) string {
 	if opt.FoldQuotes {
 		s = folder.Replace(s)
+	}
+	if opt.FoldCase {
+		s = strings.ToLower(s)
 	}
 	return strings.Join(strings.Fields(s), " ")
 }

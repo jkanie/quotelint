@@ -33,7 +33,7 @@ A command-line tool that checks every quoted passage in your documents against t
   - Inside `pre`, the text keeps its line breaks, and a `br` gives a line break. Elsewhere, each run of spaces, tabs, line breaks becomes 1 space. The comparison counts a line break as a space either way.
   - Character references such as `&amp;` and `&nbsp;` are decoded.
   - A page nested deeper than 512 elements stops the run with an error (exit status 2). 512 is the limit of the parser.
-- Compares quote and source after it collapses each run of white space (no-break spaces included) to 1 space. No other character changes unless `--fold-quotes` is given.
+- Compares quote and source after it collapses each run of white space (no-break spaces included) to 1 space. No other character changes unless `--fold-quotes` or `--ignore-case` is given.
 - Marks a quote as verbatim when its text occurs in a source with no letter or digit glued to either end.
 - Otherwise, finds the nearest passage in any source (the run of source words with the fewest word edits) and lists the changed words. A quote that needs more edits than half its words counts as not found.
 - Prints a JSON object instead of text with `--json`. Keys come out in sorted order so that 2 runs on the same files print the same bytes.
@@ -98,13 +98,14 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
                      win).
-  --fail-on WHAT      Which quotes make the exit status 1: any (the
+  --fail-on WHAT     Which quotes make the exit status 1: any (the
                      default, a quote that differs or is not found) or
                      not-found (only a quote that is not found).
   --json             Print a JSON object instead of text.
@@ -120,6 +121,7 @@ not found), 2 on an error.
 
 - `-s` lets 1 run check a whole folder of drafts (or several files) against the same sources.
 - `--min-words` skips short quoted words and titles (such as "the" or "Run"), which are not quotes of a source.
+- `--ignore-case` lowers every letter on both sides, for a quote that starts with a capital where the source runs on mid-sentence. It is off by default for the same reason. The passage shown for a quote that differs is then in lower case.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.

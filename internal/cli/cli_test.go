@@ -312,6 +312,17 @@ func TestFoldQuotes(t *testing.T) {
 	}
 }
 
+func TestIgnoreCase(t *testing.T) {
+	d, s := setup(t, "Ok: \"Stores and return values only from the observations\".\n")
+	if code, _, _ := run(d, s); code != 1 {
+		t.Fatalf("strict code %d", code)
+	}
+	code, out, _ := run("--ignore-case", d, s)
+	if code != 0 || !strings.HasSuffix(out, "summary: 1 doc, 1 quote, 1 verbatim, 0 differs, 0 not found\n") {
+		t.Fatalf("folded code %d:\n%s", code, out)
+	}
+}
+
 func TestErrorsExitTwo(t *testing.T) {
 	d, s := setup(t, "x\n")
 	cases := [][]string{
