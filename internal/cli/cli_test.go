@@ -380,6 +380,51 @@ func TestDashDocReadsStandardInput(t *testing.T) {
 	}
 }
 
+func TestStdinNameNamesTheDashDoc(t *testing.T) {
+	d, s := setup(t, "x\n")
+	saved := Stdin
+	defer func() { Stdin = saved }()
+	quote := "Ok: \"stores and return values only from the observations\".\n"
+	Stdin = strings.NewReader(quote)
+	code, out, errOut := run("--stdin-name", "draft.md", "-", s)
+	want := "draft.md:1: verbatim in " + s + ": \"stores and return values only from the observations\"\n"
+	if code != 0 || !strings.HasPrefix(out, want) {
+		t.Fatalf("code %d, err %q:\n%s", code, errOut, out)
+	}
+	// A SOURCE file of that name is left out, as a DOC file is: here the only source, so none is left.
+	Stdin = strings.NewReader(quote)
+	code, _, errOut = run("--stdin-name="+s, "-s", s, "-")
+	if code != 2 || !strings.Contains(errOut, "no SOURCE left once the DOCs are left out") {
+		t.Fatalf("code %d, err %q", code, errOut)
+	}
+	// The JSON and the --skip keys use the name.
+	skip := filepath.Join(filepath.Dir(d), "skip.txt")
+	write(t, skip, "draft.md:1\tquoted from a talk\n")
+	Stdin = strings.NewReader(quote)
+	_, js, _ := run("--json", "--skip", skip, "--stdin-name", "draft.md", "-", s)
+	var r struct {
+		Docs   []string `json:"docs"`
+		Quotes []struct {
+			Doc    string `json:"doc"`
+			Status string `json:"status"`
+		} `json:"quotes"`
+	}
+	if err := json.Unmarshal([]byte(js), &r); err != nil {
+		t.Fatalf("%v: %s", err, js)
+	}
+	if strings.Join(r.Docs, " ") != "draft.md" || len(r.Quotes) != 1 ||
+		r.Quotes[0].Doc != "draft.md" || r.Quotes[0].Status != "skipped" {
+		t.Fatalf("json:\n%s", js)
+	}
+	// It needs a name, and a DOC of -.
+	for _, c := range [][]string{{"--stdin-name", "", "-", s}, {"--stdin-name=-", "-", s}, {"-", s, "--stdin-name"}, {"--stdin-name", "x.md", d, s}} {
+		code, out, errOut := run(c...)
+		if code != 2 || out != "" || !strings.Contains(errOut, "--stdin-name") {
+			t.Fatalf("%q: code %d, out %q, err %q", c, code, out, errOut)
+		}
+	}
+}
+
 func TestErrorsExitTwo(t *testing.T) {
 	d, s := setup(t, "x\n")
 	cases := [][]string{

@@ -38,8 +38,8 @@ Files are read as UTF-8 text, or as UTF-16 when they start with a
 UTF-16 byte-order mark (as Notepad and Windows PowerShell 5.1 save them).
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs. A DOC
-of - is read from standard input and named - in the report, before
-the other DOCs.
+of - is read from standard input and named - in the report (or as
+--stdin-name gives), before the other DOCs.
 
 Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
@@ -55,6 +55,9 @@ Options:
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
+  --stdin-name NAME  Name the DOC - (standard input) NAME in the report,
+                     such as the file an editor pipes in. A SOURCE file of
+                     that name is left out, as a DOC file is.
   --exclude GLOB     Skip each file or folder in a DOC or SOURCE folder
                      whose name matches GLOB, such as drafts or *.bak.md
                      (repeatable).
@@ -90,6 +93,7 @@ type config struct {
 	summary  bool
 	skip     string
 	exclude  []string
+	stdinAs  string
 	refresh  bool
 	cacheDir string
 }
@@ -137,6 +141,19 @@ func parse(args []string) (config, error) {
 				return c, errors.New("--cache-dir needs a folder")
 			}
 			c.cacheDir = v
+		case a == "--stdin-name" || strings.HasPrefix(a, "--stdin-name="):
+			v, ok := strings.CutPrefix(a, "--stdin-name=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--stdin-name needs a name")
+				}
+				i++
+				v = args[i]
+			}
+			if v == "" || v == "-" {
+				return c, errors.New("--stdin-name needs a name other than -")
+			}
+			c.stdinAs = v
 		case a == "--skip" || strings.HasPrefix(a, "--skip="):
 			v, ok := strings.CutPrefix(a, "--skip=")
 			if !ok {
@@ -383,6 +400,14 @@ func check(c config) (report, error) {
 			docs = append(docs, "-")
 		}
 	}
+	// fromStdin marks docs[0] as standard input. With --stdin-name it is reported under that name.
+	fromStdin := len(docs) > 0
+	if c.stdinAs != "" {
+		if !fromStdin {
+			return report{}, errors.New("--stdin-name needs a DOC of - (standard input)")
+		}
+		docs[0] = c.stdinAs
+	}
 	if len(docPaths) > 0 {
 		more, err := source.ExpandSkipping(docPaths, source.DocExts, c.exclude)
 		if err != nil {
@@ -409,7 +434,7 @@ func check(c config) (report, error) {
 			return report{}, err
 		}
 		fileDocs := docs
-		if len(docs) > 0 && docs[0] == "-" {
+		if fromStdin && c.stdinAs == "" {
 			fileDocs = docs[1:]
 		}
 		srcs = source.Without(srcs, fileDocs)
@@ -468,9 +493,9 @@ func check(c config) (report, error) {
 		}
 	}
 	r.Sources = srcs
-	for _, d := range docs {
+	for i, d := range docs {
 		var b []byte
-		if d == "-" {
+		if i == 0 && fromStdin {
 			b, err = io.ReadAll(Stdin)
 		} else {
 			b, err = os.ReadFile(d)

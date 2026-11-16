@@ -88,8 +88,8 @@ Files are read as UTF-8 text, or as UTF-16 when they start with a
 UTF-16 byte-order mark (as Notepad and Windows PowerShell 5.1 save them).
 
 With no -s, the 1st path is the DOC and the rest are SOURCEs. A DOC
-of - is read from standard input and named - in the report, before
-the other DOCs.
+of - is read from standard input and named - in the report (or as
+--stdin-name gives), before the other DOCs.
 
 Options:
   -s, --source PATH  Add a SOURCE file or folder (repeatable). Every
@@ -105,6 +105,9 @@ Options:
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
+  --stdin-name NAME  Name the DOC - (standard input) NAME in the report,
+                     such as the file an editor pipes in. A SOURCE file of
+                     that name is left out, as a DOC file is.
   --exclude GLOB     Skip each file or folder in a DOC or SOURCE folder
                      whose name matches GLOB, such as drafts or *.bak.md
                      (repeatable).
@@ -139,6 +142,7 @@ not found), 2 on an error.
 - `-q` or `--quiet` prints nothing on stdout, for a script or a pre-commit hook that needs only the exit status (0 when every quote is verbatim or skipped, 1 when any differs or is not found). It wins over `--json`. An error still prints on stderr and exits with 2.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
 - A DOC of `-` reads the document from standard input, such as `git show HEAD:notes.md | quotelint - sources/` for the committed version of a file. It is named `-` in the report and comes before the other DOCs. A file named `-` is given as `./-`. A SOURCE cannot be `-`.
+- `--stdin-name NAME` names that DOC in the report instead, such as an editor that checks a file before it is saved: `quotelint --stdin-name notes.md - sources/ < notes.md`. Lines, the JSON, the `--skip` file then use NAME. A SOURCE file at that path is left out, as a DOC file is, so the saved copy of the file is not read as a source of itself.
 - A SOURCE that starts with `http://` or `https://` is a web page. See [Web page sources](#web-page-sources).
 
 ## Web page sources
