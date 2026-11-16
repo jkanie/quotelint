@@ -33,7 +33,7 @@ A command-line tool that checks every quoted passage in your documents against t
   - Inside `pre`, the text keeps its line breaks, and a `br` gives a line break. Elsewhere, each run of spaces, tabs, line breaks becomes 1 space. The comparison counts a line break as a space either way.
   - Character references such as `&amp;` and `&nbsp;` are decoded.
   - A page nested deeper than 512 elements stops the run with an error (exit status 2). 512 is the limit of the parser.
-- Compares quote and source after it collapses each run of white space (no-break spaces included) to 1 space. No other character changes unless `--fold-quotes` or `--ignore-case` is given.
+- Compares quote and source after it collapses each run of white space (no-break spaces included) to 1 space. No other character changes unless `--fold-quotes`, `--fold-dashes` or `--ignore-case` is given.
 - Marks a quote as verbatim when its text occurs in a source with no letter or digit glued to either end.
 - Otherwise, finds the nearest passage in any source (the run of source words with the fewest word edits) and lists the changed words. A quote that needs more edits than half its words counts as not found.
 - Prints a JSON object instead of text with `--json`. Keys come out in sorted order so that 2 runs on the same files print the same bytes.
@@ -102,6 +102,8 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --fold-dashes      Treat hyphens, en dashes, em dashes, minus signs as
+                     equal.
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
@@ -134,6 +136,7 @@ not found), 2 on an error.
 - `--max-words` skips long quotes, such as a whole paragraph in quotation marks that a reviewer checks another way. Each quote inside a quote counts its own words, so a short quote inside a long 1 is still checked. A `--max-words` below `--min-words` is an error (exit 2), since no quote could be checked.
 - `--ignore-case` lowers every letter on both sides, for a quote that starts with a capital where the source runs on mid-sentence. It is off by default for the same reason. The passage shown for a quote that differs is then in lower case.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
+- `--fold-dashes` maps 7 characters to `-` on both sides: U+2010 (hyphen), U+2011 (non-breaking hyphen), U+2012 (figure dash), U+2013 (en dash), U+2014 (em dash), U+2015 (horizontal bar), U+2212 (minus sign). A page range that a source writes with an en dash then matches 1 typed with `-`. The spaces around a dash still count, so an em dash with no spaces around it does not match ` - `. It is off by default, as `--fold-quotes` is.
 - `--exclude GLOB` skips each file or folder found inside a DOC or SOURCE folder whose name matches GLOB, such as `--exclude drafts --exclude '*.bak.md'`. GLOB uses Go's `filepath.Match` rules and matches the whole name, not the path, so `drafts` skips a folder named `drafts` but not `drafts.md`. A file named on the command line is checked whatever its name. A folder left with no file to read is an error, as an empty folder is.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.

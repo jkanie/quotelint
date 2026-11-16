@@ -97,6 +97,26 @@ func TestFoldQuotesMakesVerbatim(t *testing.T) {
 	}
 }
 
+func TestFoldDashesMakesVerbatim(t *testing.T) {
+	// En dash, em dash, minus sign, non-breaking hyphen in the source.
+	s := "pages 10\u201312 \u2014 not \u22121 \u2014 in the long\u2011term plan"
+	q := "pages 10-12 - not -1 - in the long-term plan"
+	if r := Check(q, src("s", s), Options{}); r.Status == Verbatim {
+		t.Fatalf("strict: got %+v", r)
+	}
+	opt := Options{FoldDashes: true}
+	if r := Check(q, []Text{Prepare("s", s, opt)}, opt); r.Status != Verbatim {
+		t.Fatalf("folded: got %+v", r)
+	}
+	// The spaces around a dash still count.
+	if r := Check("a-b c d", []Text{Prepare("s", "a \u2014 b c d", opt)}, opt); r.Status == Verbatim {
+		t.Fatalf("spaces: got %+v", r)
+	}
+	if got := Normalize("\u2010\u2011\u2012\u2013\u2014\u2015\u2212", opt); got != "-------" {
+		t.Fatalf("Normalize: got %q", got)
+	}
+}
+
 func TestFoldCaseMakesVerbatim(t *testing.T) {
 	s := "the method stores and returns values only from the observations."
 	q := "The method stores and returns values only from the observations."

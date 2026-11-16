@@ -25,6 +25,10 @@ type Options struct {
 	// start with a capital where the source runs on mid-sentence. Off by
 	// default, for the same reason as FoldQuotes.
 	FoldCase bool
+	// FoldDashes treats the hyphen and dash characters as a plain hyphen,
+	// such that an en dash in the source matches a typed hyphen. Off by
+	// default, for the same reason as FoldQuotes.
+	FoldDashes bool
 }
 
 // Change is 1 run of differing words between a quote and its nearest
@@ -56,13 +60,24 @@ var folder = strings.NewReplacer(
 	"“", "\"", "”", "\"", "„", "\"", "‟", "\"",
 )
 
+// dashes maps each hyphen and dash character to "-": hyphen, non-breaking
+// hyphen, figure dash, en dash, em dash, horizontal bar, minus sign.
+var dashes = strings.NewReplacer(
+	"\u2010", "-", "\u2011", "-", "\u2012", "-", "\u2013", "-",
+	"\u2014", "-", "\u2015", "-", "\u2212", "-",
+)
+
 // Normalize collapses every run of white space (no-break spaces
 // included) to 1 space and trims both ends. With FoldQuotes, it also maps
-// curly quotation marks to straight ones. With FoldCase, it also lowers
-// every letter. No other character changes.
+// curly quotation marks to straight ones. With FoldDashes, it also maps
+// each dash to a hyphen. With FoldCase, it also lowers every letter. No
+// other character changes.
 func Normalize(s string, opt Options) string {
 	if opt.FoldQuotes {
 		s = folder.Replace(s)
+	}
+	if opt.FoldDashes {
+		s = dashes.Replace(s)
 	}
 	if opt.FoldCase {
 		s = strings.ToLower(s)

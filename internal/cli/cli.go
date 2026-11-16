@@ -52,6 +52,8 @@ Options:
   --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
                      the user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
+  --fold-dashes      Treat hyphens, en dashes, em dashes, minus signs as
+                     equal.
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
@@ -87,6 +89,7 @@ type config struct {
 	failOn   string
 	fold     bool
 	foldCase bool
+	foldDash bool
 	json     bool
 	quiet    bool
 	problems bool
@@ -120,6 +123,8 @@ func parse(args []string) (config, error) {
 			c.quiet = true
 		case a == "--fold-quotes":
 			c.fold = true
+		case a == "--fold-dashes":
+			c.foldDash = true
 		case a == "--ignore-case":
 			c.foldCase = true
 		case a == "--problems-only":
@@ -442,7 +447,7 @@ func check(c config) (report, error) {
 	if len(srcs) == 0 && len(urls) == 0 {
 		return report{}, errors.New("no SOURCE left once the DOCs are left out")
 	}
-	opt := match.Options{FoldQuotes: c.fold, FoldCase: c.foldCase}
+	opt := match.Options{FoldQuotes: c.fold, FoldCase: c.foldCase, FoldDashes: c.foldDash}
 	var texts []match.Text
 	for _, p := range srcs {
 		s, err := source.Load(p)
@@ -636,9 +641,9 @@ func preview(q string) string {
 
 // longOptions are the long options parse knows, for the "did you mean" hint.
 var longOptions = []string{
-	"--cache-dir", "--exclude", "--fail-on", "--fold-quotes", "--help", "--ignore-case", "--json",
-	"--max-words", "--min-words", "--problems-only", "--quiet", "--refresh", "--skip", "--source",
-	"--stdin-name", "--summary", "--version",
+	"--cache-dir", "--exclude", "--fail-on", "--fold-dashes", "--fold-quotes", "--help", "--ignore-case",
+	"--json", "--max-words", "--min-words", "--problems-only", "--quiet", "--refresh", "--skip",
+	"--source", "--stdin-name", "--summary", "--version",
 }
 
 // unknownOption names an option parse does not know. When 1 long option is within 2 edits of
