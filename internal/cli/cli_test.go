@@ -469,6 +469,35 @@ func TestSourceFolderIsWalked(t *testing.T) {
 	}
 }
 
+func TestExcludeSkipsNamesInFolders(t *testing.T) {
+	dir := t.TempDir()
+	docs := filepath.Join(dir, "docs")
+	write(t, filepath.Join(docs, "1.md"), "\"alpha beta gamma\"\n")
+	write(t, filepath.Join(docs, "drafts", "2.md"), "\"not in any source\"\n")
+	src := filepath.Join(dir, "src")
+	write(t, filepath.Join(src, "a.txt"), "x alpha beta gamma y")
+	write(t, filepath.Join(src, "old.bak.txt"), "alpha beta gamma")
+	code, out, _ := run("-s", src, docs)
+	if code != 1 || !strings.Contains(out, "summary: 2 docs") {
+		t.Fatalf("without --exclude: code %d\n%s", code, out)
+	}
+	code, out, errOut := run("--exclude", "drafts", "--exclude=*.bak.txt", "-s", src, docs)
+	if code != 0 || !strings.Contains(out, "summary: 1 doc, 1 quote, 1 verbatim") {
+		t.Fatalf("code %d\n%s%s", code, out, errOut)
+	}
+	_, js, _ := run("--json", "--exclude", "drafts", "--exclude", "*.bak.txt", "-s", src, docs)
+	if strings.Contains(js, "drafts") || strings.Contains(js, "old.bak.txt") {
+		t.Fatalf("read a file --exclude names:\n%s", js)
+	}
+	// A bad or a missing pattern is a usage error.
+	for _, args := range [][]string{{"--exclude", "[a-", "-s", src, docs}, {"--exclude=", "-s", src, docs}, {"-s", src, docs, "--exclude"}} {
+		code, _, errOut := run(args...)
+		if code != 2 || !strings.Contains(errOut, "--exclude") || !strings.Contains(errOut, "Try quotelint --help.") {
+			t.Fatalf("%q: code %d, err %q", args, code, errOut)
+		}
+	}
+}
+
 func TestSeveralDocsWithSourceFlag(t *testing.T) {
 	dir := t.TempDir()
 	s := filepath.Join(dir, "s.txt")

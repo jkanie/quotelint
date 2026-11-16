@@ -105,6 +105,9 @@ Options:
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
+  --exclude GLOB     Skip each file or folder in a DOC or SOURCE folder
+                     whose name matches GLOB, such as drafts or *.bak.md
+                     (repeatable).
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
@@ -128,6 +131,7 @@ not found), 2 on an error.
 - `--max-words` skips long quotes, such as a whole paragraph in quotation marks that a reviewer checks another way. Each quote inside a quote counts its own words, so a short quote inside a long 1 is still checked. A `--max-words` below `--min-words` is an error (exit 2), since no quote could be checked.
 - `--ignore-case` lowers every letter on both sides, for a quote that starts with a capital where the source runs on mid-sentence. It is off by default for the same reason. The passage shown for a quote that differs is then in lower case.
 - `--fold-quotes` maps the curly marks `‘ ’ ‚ ‛ “ ” „ ‟` to `'` and `"` on both sides. It is off by default because a quote should keep the source's own characters.
+- `--exclude GLOB` skips each file or folder found inside a DOC or SOURCE folder whose name matches GLOB, such as `--exclude drafts --exclude '*.bak.md'`. GLOB uses Go's `filepath.Match` rules and matches the whole name, not the path, so `drafts` skips a folder named `drafts` but not `drafts.md`. A file named on the command line is checked whatever its name. A folder left with no file to read is an error, as an empty folder is.
 - `--skip FILE` names quotes that the check leaves alone, such as a paraphrase kept on purpose. Each line of FILE holds what to skip, a tab, then the reason. What to skip is either `DOC:LINE` as the report writes it (such as `notes.md:12`) or the quote's text, with its white space run together. Blank lines and lines that start with `#` are left out. A skipped quote shows as `skipped (REASON)`, counts in the summary as skipped, and never makes the exit status 1. An entry that matches no quote (the quote was fixed, or its line moved) is named on stderr, and changes nothing else.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.
 - `--fail-on not-found` keeps the exit status at 0 when quotes only differ, for a CI step that accepts edited quotes but not invented ones. Those quotes are still listed.

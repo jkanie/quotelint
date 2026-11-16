@@ -55,6 +55,9 @@ Options:
   --ignore-case      Treat upper and lower case as equal.
   --skip FILE        Skip the quotes that FILE lists, each with a reason
                      (see the README). They count as skipped.
+  --exclude GLOB     Skip each file or folder in a DOC or SOURCE folder
+                     whose name matches GLOB, such as drafts or *.bak.md
+                     (repeatable).
   --problems-only    List only quotes that differ or are not found. The
                      summary still counts every quote.
   --summary          Print only the summary line (--json and --quiet
@@ -86,6 +89,7 @@ type config struct {
 	problems bool
 	summary  bool
 	skip     string
+	exclude  []string
 	refresh  bool
 	cacheDir string
 }
@@ -146,6 +150,19 @@ func parse(args []string) (config, error) {
 				return c, errors.New("--skip needs a file")
 			}
 			c.skip = v
+		case a == "--exclude" || strings.HasPrefix(a, "--exclude="):
+			v, ok := strings.CutPrefix(a, "--exclude=")
+			if !ok {
+				if i+1 >= len(args) {
+					return c, errors.New("--exclude needs a pattern")
+				}
+				i++
+				v = args[i]
+			}
+			if err := source.ValidPattern(v); err != nil {
+				return c, fmt.Errorf("--exclude: %v", err)
+			}
+			c.exclude = append(c.exclude, v)
 		case a == "-s" || a == "--source" || strings.HasPrefix(a, "--source="):
 			v, ok := strings.CutPrefix(a, "--source=")
 			if !ok {
@@ -367,7 +384,7 @@ func check(c config) (report, error) {
 		}
 	}
 	if len(docPaths) > 0 {
-		more, err := source.Expand(docPaths, source.DocExts)
+		more, err := source.ExpandSkipping(docPaths, source.DocExts, c.exclude)
 		if err != nil {
 			return report{}, err
 		}
@@ -387,7 +404,7 @@ func check(c config) (report, error) {
 	}
 	var srcs []string
 	if len(paths) > 0 {
-		srcs, err = source.Expand(paths, source.SourceExts)
+		srcs, err = source.ExpandSkipping(paths, source.SourceExts, c.exclude)
 		if err != nil {
 			return report{}, err
 		}

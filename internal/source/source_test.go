@@ -176,6 +176,38 @@ func TestExpandSortsDedupesAndSkipsDotNames(t *testing.T) {
 	}
 }
 
+func TestExpandSkippingDropsMatchingNames(t *testing.T) {
+	dir := t.TempDir()
+	for _, p := range []string{"a.md", "a.bak.md", "drafts/b.md", "keep/drafts.md", "keep/c.md"} {
+		full := filepath.Join(dir, p)
+		os.MkdirAll(filepath.Dir(full), 0o755)
+		os.WriteFile(full, []byte("x"), 0o644)
+	}
+	got, err := ExpandSkipping([]string{dir}, DocExts, []string{"drafts", "*.bak.md"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A pattern matches the whole name, so keep/drafts.md stays.
+	want := []string{filepath.Join(dir, "a.md"), filepath.Join(dir, "keep", "c.md"), filepath.Join(dir, "keep", "drafts.md")}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	// A file named directly is kept, and a folder left with no file is an error.
+	bak := filepath.Join(dir, "a.bak.md")
+	if got, err := ExpandSkipping([]string{bak}, DocExts, []string{"*.bak.md"}); err != nil || len(got) != 1 {
+		t.Fatalf("named file: %q, %v", got, err)
+	}
+	if _, err := ExpandSkipping([]string{dir}, DocExts, []string{"*"}); err == nil || !strings.Contains(err.Error(), "no file ending in") {
+		t.Fatalf("got %v", err)
+	}
+	if err := ValidPattern("[a-"); err == nil || !strings.Contains(err.Error(), `bad pattern "[a-"`) {
+		t.Fatalf("got %v", err)
+	}
+	if err := ValidPattern(""); err == nil {
+		t.Fatal("an empty pattern should be an error")
+	}
+}
+
 // utf16Bytes encodes s as UTF-16 with a byte-order mark.
 func utf16Bytes(s string, big bool) []byte {
 	b := []byte{0xFF, 0xFE}

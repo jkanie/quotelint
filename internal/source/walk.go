@@ -22,6 +22,14 @@ var SourceExts = []string{".md", ".markdown", ".txt", ".text", ".html", ".htm"}
 // twice is listed once. A folder that holds no matching file is an error,
 // so that a typo in a path never passes as "no quotes to check".
 func Expand(paths []string, exts []string) ([]string, error) {
+	return ExpandSkipping(paths, exts, nil)
+}
+
+// ExpandSkipping is Expand that also skips each file or folder, found while
+// walking a folder, whose name matches 1 of the filepath.Match patterns in
+// skip (such as drafts or *.bak.md). A path named in paths is kept whatever
+// its name. Each pattern must already be valid, as ValidPattern checks.
+func ExpandSkipping(paths []string, exts []string, skip []string) ([]string, error) {
 	var out []string
 	seen := map[string]bool{}
 	add := func(p string) {
@@ -45,7 +53,7 @@ func Expand(paths []string, exts []string) ([]string, error) {
 			if err != nil {
 				return err
 			}
-			if path != p && strings.HasPrefix(d.Name(), ".") {
+			if path != p && (strings.HasPrefix(d.Name(), ".") || matchesAny(d.Name(), skip)) {
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -68,6 +76,26 @@ func Expand(paths []string, exts []string) ([]string, error) {
 		}
 	}
 	return out, nil
+}
+
+// ValidPattern reports an error for a pattern that filepath.Match rejects.
+func ValidPattern(pattern string) error {
+	if pattern == "" {
+		return fmt.Errorf("an empty pattern")
+	}
+	if _, err := filepath.Match(pattern, ""); err != nil {
+		return fmt.Errorf("bad pattern %q: %v", pattern, err)
+	}
+	return nil
+}
+
+func matchesAny(name string, patterns []string) bool {
+	for _, p := range patterns {
+		if ok, _ := filepath.Match(p, name); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // Without returns paths minus every path that names the same file as one
