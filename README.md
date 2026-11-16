@@ -139,6 +139,7 @@ not found), 2 on an error.
 - `--problems-only` leaves the verbatim quotes out of the list, in text and in JSON, such that a long document shows only what needs a fix. The summary and the exit status still count every quote.
 - `--fail-on not-found` keeps the exit status at 0 when quotes only differ, for a CI step that accepts edited quotes but not invented ones. Those quotes are still listed.
 - `--summary` prints the summary line alone, without the quotes or the `page:` lines, for a CI log that needs only the counts. The exit status stays the same.
+- A mistyped long option is a usage error (exit status 2) that names the nearest known option when only 1 is within 2 letter edits of it (a letter added, dropped, changed), such as `unknown option --sorce (did you mean --source?)`. Nothing is guessed when 2 options are as near.
 - `-q` or `--quiet` prints nothing on stdout, for a script or a pre-commit hook that needs only the exit status (0 when every quote is verbatim or skipped, 1 when any differs or is not found). It wins over `--json`. An error still prints on stderr and exits with 2.
 - `--` ends the options, so that a file whose name starts with `-` can be checked.
 - A DOC of `-` reads the document from standard input, such as `git show HEAD:notes.md | quotelint - sources/` for the committed version of a file. It is named `-` in the report and comes before the other DOCs. A file named `-` is given as `./-`. A SOURCE cannot be `-`.

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -422,6 +423,43 @@ func TestStdinNameNamesTheDashDoc(t *testing.T) {
 		if code != 2 || out != "" || !strings.Contains(errOut, "--stdin-name") {
 			t.Fatalf("%q: code %d, out %q, err %q", c, code, out, errOut)
 		}
+	}
+}
+
+func TestUnknownOptionSuggestsTheNearestOne(t *testing.T) {
+	d, s := setup(t, "x\n")
+	for _, c := range []struct{ arg, want string }{
+		{"--sorce", "quotelint: unknown option --sorce (did you mean --source?)\n"},
+		{"--min-word=3", "quotelint: unknown option --min-word=3 (did you mean --min-words?)\n"},
+		{"--jsno", "quotelint: unknown option --jsno (did you mean --json?)\n"},
+		// Within 2 edits of both --min-words and --max-words: no guess.
+		{"--m-words", "quotelint: unknown option --m-words\n"},
+		{"--frobnicate", "quotelint: unknown option --frobnicate\n"},
+		{"-x", "quotelint: unknown option -x\n"},
+	} {
+		code, out, errOut := run(c.arg, d, s)
+		if code != 2 || out != "" || !strings.HasPrefix(errOut, c.want) {
+			t.Fatalf("%s: code %d, out %q, err %q", c.arg, code, out, errOut)
+		}
+	}
+}
+
+func TestLongOptionsMatchTheHelp(t *testing.T) {
+	// Every long option in the help is a suggestion, and every suggestion is in the help.
+	seen := map[string]bool{}
+	for _, f := range strings.Fields(usage) {
+		f = strings.Trim(f, ",.()[]")
+		if f, _, _ = strings.Cut(f, "="); strings.HasPrefix(f, "--") && len(f) > 2 {
+			seen[f] = true
+		}
+	}
+	var help []string
+	for f := range seen {
+		help = append(help, f)
+	}
+	sort.Strings(help)
+	if strings.Join(help, " ") != strings.Join(longOptions, " ") {
+		t.Fatalf("help %q\nhint %q", help, longOptions)
 	}
 }
 

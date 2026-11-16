@@ -232,7 +232,7 @@ func parse(args []string) (config, error) {
 			}
 			c.failOn = v
 		case strings.HasPrefix(a, "-") && a != "-":
-			return c, fmt.Errorf("unknown option %s", a)
+			return c, unknownOption(a)
 		default:
 			pos = append(pos, a)
 		}
@@ -632,4 +632,52 @@ func preview(q string) string {
 		return strconv.Quote(string(r[:60]) + "...")
 	}
 	return strconv.Quote(q)
+}
+
+// longOptions are the long options parse knows, for the "did you mean" hint.
+var longOptions = []string{
+	"--cache-dir", "--exclude", "--fail-on", "--fold-quotes", "--help", "--ignore-case", "--json",
+	"--max-words", "--min-words", "--problems-only", "--quiet", "--refresh", "--skip", "--source",
+	"--stdin-name", "--summary", "--version",
+}
+
+// unknownOption names an option parse does not know. When 1 long option is within 2 edits of
+// it (a typo such as --sorce or --min-word), the error suggests that option.
+func unknownOption(a string) error {
+	name, _, _ := strings.Cut(a, "=")
+	best, bestDist, ties := "", 3, 0
+	for _, o := range longOptions {
+		switch d := editDistance(name, o); {
+		case d < bestDist:
+			best, bestDist, ties = o, d, 1
+		case d == bestDist:
+			ties++
+		}
+	}
+	if best != "" && ties == 1 && strings.HasPrefix(name, "--") {
+		return fmt.Errorf("unknown option %s (did you mean %s?)", a, best)
+	}
+	return fmt.Errorf("unknown option %s", a)
+}
+
+// editDistance is the Levenshtein distance: the fewest 1-character inserts, deletes, changes
+// that turn a into b.
+func editDistance(a, b string) int {
+	prev := make([]int, len(b)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(a); i++ {
+		cur := make([]int, len(b)+1)
+		cur[0] = i
+		for j := 1; j <= len(b); j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev = cur
+	}
+	return prev[len(b)]
 }
