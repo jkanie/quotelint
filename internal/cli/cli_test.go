@@ -724,6 +724,51 @@ func TestURLSourceIsCachedAndRefreshed(t *testing.T) {
 	}
 }
 
+func TestCacheDirComesFromTheEnvironment(t *testing.T) {
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(page))
+	}))
+	defer srv.Close()
+	dir := t.TempDir()
+	d := filepath.Join(dir, "notes.md")
+	if err := os.WriteFile(d, []byte("SAS: \"stores and return values only from the observations\".\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	u := srv.URL + "/lag"
+	fromEnv := filepath.Join(dir, "env")
+	t.Setenv("QUOTELINT_CACHE_DIR", fromEnv)
+	if code, out, errOut := run(d, u); code != 0 || hits != 1 {
+		t.Fatalf("1st run: code %d, hits %d:\n%s%s", code, hits, out, errOut)
+	}
+	if files, _ := os.ReadDir(fromEnv); len(files) != 1 {
+		t.Fatalf("QUOTELINT_CACHE_DIR holds %d files, want 1", len(files))
+	}
+	if _, out, _ := run(d, u); hits != 1 || !strings.Contains(out, "(from the cache, fetched ") {
+		t.Fatalf("2nd run: hits %d:\n%s", hits, out)
+	}
+	// --cache-dir wins: an empty folder there means a new fetch.
+	flag := filepath.Join(dir, "flag")
+	if code, _, _ := run("--cache-dir", flag, d, u); code != 0 || hits != 2 {
+		t.Fatalf("--cache-dir run: code %d, hits %d", code, hits)
+	}
+	if files, _ := os.ReadDir(flag); len(files) != 1 {
+		t.Fatalf("--cache-dir holds %d files, want 1", len(files))
+	}
+	// An empty value counts as unset, so the user cache folder is used. It is pointed at a
+	// temporary folder here, as each system names it.
+	t.Setenv("QUOTELINT_CACHE_DIR", "")
+	home := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", home)
+	t.Setenv("HOME", home)
+	t.Setenv("LocalAppData", home)
+	if code, _, errOut := run(d, u); code != 0 || hits != 3 {
+		t.Fatalf("empty variable: code %d, hits %d:\n%s", code, hits, errOut)
+	}
+}
+
 func TestJSONHasNoPagesWithoutURLSources(t *testing.T) {
 	d, s := setup(t, "SAS: \"stores and return values only from the observations\".\n")
 	_, out, _ := run("--json", d, s)

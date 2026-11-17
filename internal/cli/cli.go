@@ -49,8 +49,9 @@ Options:
                      leave out long passages (default: no limit).
   --refresh          Fetch every web page SOURCE again, then update the
                      cache.
-  --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
-                     the user cache folder).
+  --cache-dir DIR    Keep fetched pages in DIR (default:
+                     QUOTELINT_CACHE_DIR if set, else quotelint in the
+                     user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
   --fold-dashes      Treat hyphens, en dashes, em dashes, minus signs as
                      equal.
@@ -466,7 +467,12 @@ func check(c config) (report, error) {
 	r := report{Docs: docs, Quotes: []jsonQuote{}, Version: Version}
 	used := map[string]bool{}
 	if len(urls) > 0 {
+		// --cache-dir wins over QUOTELINT_CACHE_DIR, which wins over the user cache folder. An empty
+		// variable counts as unset.
 		dir := c.cacheDir
+		if dir == "" {
+			dir = os.Getenv("QUOTELINT_CACHE_DIR")
+		}
 		if dir == "" {
 			if dir, err = source.DefaultCacheDir(); err != nil {
 				return report{}, err

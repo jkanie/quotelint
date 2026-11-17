@@ -99,8 +99,9 @@ Options:
                      leave out long passages (default: no limit).
   --refresh          Fetch every web page SOURCE again, then update the
                      cache.
-  --cache-dir DIR    Keep fetched pages in DIR (default: quotelint in
-                     the user cache folder).
+  --cache-dir DIR    Keep fetched pages in DIR (default:
+                     QUOTELINT_CACHE_DIR if set, else quotelint in the
+                     user cache folder).
   --fold-quotes      Treat curly and straight quotation marks as equal.
   --fold-dashes      Treat hyphens, en dashes, em dashes, minus signs as
                      equal.
@@ -155,7 +156,7 @@ not found), 2 on an error.
 quotelint notes.md https://example.com/manual/lag.html
 ```
 
-- The 1st run fetches the page and keeps it in the cache: `quotelint` in the user cache folder (`~/.cache/quotelint` on Linux, `~/Library/Caches/quotelint` on macOS, `%LocalAppData%\quotelint` on Windows), or the folder named by `--cache-dir`. Each URL gets 1 JSON file, named by the SHA-256 of the URL, with the page, its content type, the URL it ended on after redirects, the fetch time in UTC.
+- The 1st run fetches the page and keeps it in the cache: `quotelint` in the user cache folder (`~/.cache/quotelint` on Linux, `~/Library/Caches/quotelint` on macOS, `%LocalAppData%\quotelint` on Windows), or the folder named by `--cache-dir`. `QUOTELINT_CACHE_DIR=DIR` in the environment sets that folder for every run, such as a folder that a CI job keeps between runs. `--cache-dir` wins over it, and an empty value counts as unset. Each URL gets 1 JSON file, named by the SHA-256 of the URL, with the page, its content type, the URL it ended on after redirects, the fetch time in UTC.
 - Later runs read the page from the cache, with no network. A re-run therefore gives the same result after the page changes. `--refresh` fetches every web page SOURCE of the run again and replaces its cache file.
 - The text report lists each page before the summary, such as `page: https://example.com/a (from the cache, fetched 2026-11-09T23:40:05Z)`. The JSON report has a `pages` list with `url`, `final_url`, `fetched_at`, `from_cache`, only when a web page SOURCE was given.
 - A page must answer 200 with `text/html` or `text/plain`, in UTF-8 (or with no charset and valid UTF-8 bytes), at 20 MiB or less, within 30 seconds. Anything else stops the run with exit code 2, and nothing is cached. An HTML page is turned into text the same way as an HTML file.
